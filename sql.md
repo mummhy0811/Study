@@ -222,30 +222,37 @@ SELECT 열_이름 FROM 테이블 이름 WHERE 조건식 GROUP BY 열_이름 HAVI
 ```
 SET @변수이름 = 값;         //변수 선언과 동시에 값 대입
 SELECT @변수이름;          //변수 값 출력
+
+
+//프로시저문 안
+DECLRE 변수이름 자료형; //변수 선언
+SET 변수이름 = 값; //변수에 값 대입
 ```
 - 영구저장되는 것이 아니라 임시저장
 - SELECT문의 LIMIT에는 사용할 수 없기 때문에, PREPARE과 EXECUTE문 사용
-```
-SET 변수명=값;
-PREPARE 이름 FROM '원하는 구문 ?';
-EXECUTE 이름 USING @변수명;
+    ```
+    SET 변수명=값;
+    PREPARE 이름 FROM '원하는 구문 ?';
+    EXECUTE 이름 USING @변수명;
 
-//예제
-SET count=1;
-PREPARE abc FROM 'SELECT name, height FROM table_A ORDER BY height LIMIT ?';
-EXECUTE abc USING @count;
-//물음표 자리에 USING뒤 변수가 들어감
-```
+    //예제
+    SET count=1;
+    PREPARE abc FROM 'SELECT name, height FROM table_A ORDER BY height LIMIT ?';
+    EXECUTE abc USING @count;
+    //물음표 자리에 USING뒤 변수가 들어감
+    ```
+
+- SELECT 열 이름 INTO 변수명 ~~ 을 이용하면 테이블 값을 변수에 저장 가능
 
 ## <데이터 형 변환>
 ### 명시적인 변환
 - 함수를 사용해서 ```강제로``` 변환하는 것
 -  CAST, CONVERT 함수 사용
-```
-//결과는 동일, 형태만 다름. 길이는 생략 가능
-CAST(값 AS 데이터형식 길이)
-CONVERT(값, 데이터형식 길이)
-```
+    ```
+    //결과는 동일, 형태만 다름. 길이는 생략 가능
+    CAST(값 AS 데이터형식 길이)
+    CONVERT(값, 데이터형식 길이)
+    ```
 
 ### 암시적인 변환
 - 별도 지시 없이 ```자동으로``` 변환되는 것
@@ -263,16 +270,16 @@ CONVERT(값, 데이터형식 길이)
 ### 내부 조인 (INNER JOIN)
 - 조인 중에서 가장 많이 사용됨
 - 일대 다의 관계가 이루어져 있어야 함
-```
-SELECT <열 목록>
-FROM 첫_번째_테이블
-    INNER JOIN 두_번째_테이블
-    ON 조인_조건
-WHERE 검색_조건;
+    ```
+    SELECT <열 목록>
+    FROM 첫_번째_테이블
+        INNER JOIN 두_번째_테이블
+        ON 조인_조건
+    WHERE 검색_조건;
 
-//WHERE은 생략 가능
-//INNER JOIN을 JOIN이라고만 써도 됨
-```
+    //WHERE은 생략 가능
+    //INNER JOIN을 JOIN이라고만 써도 됨
+    ```
 - 첫 번째 테이블 해당 열의 내용을 출력한 뒤 첫 번째 테이블에서 조인 조건이 맞는 열을 이어서 출력함   
 - 열을 선택할 때, 열 이름이 양쪽 테이블에 모두 존재하는 경우 테이블을 명시해줘야 함.
 - 테이블에 별명을 붙여주고, 이를 이용해서 열 선택시 명시해줘도 됨
@@ -281,13 +288,13 @@ WHERE 검색_조건;
 
 ### 외부 조인 (OUTER JOIN)
 - 내부 조인의 한계점을 극복. 한 개의 테이블에만 데이터가 있어도 결과 도출 가능
-```
-SELECT <열 목록>
-FROM 첫_번째_테이블(LEFT 테이블)
-    <LEFT | RIGHT | FULL> OUTER JOIN 두_번째_테이블(RIGHT 테이블)
-    ON 조인 조건
-WHERE 검색_조건;
-```
+    ```
+    SELECT <열 목록>
+    FROM 첫_번째_테이블(LEFT 테이블)
+        <LEFT | RIGHT | FULL> OUTER JOIN 두_번째_테이블(RIGHT 테이블)
+        ON 조인 조건
+    WHERE 검색_조건;
+    ```
 <img src="images/sql/OUTER-JOIN.png" width="30%"/>   
 <BR>
 
@@ -302,14 +309,99 @@ WHERE 검색_조건;
 - 한쪽 테이블의 모든 행과 다른 쪽 테이블의 모든 행을 조인시키는 것
 - 상호 조인 결과 전체 행 개수는 두 테이블의 행 개수를 곱한 만큼이 됨
 - ON 구문은 사용X
-```
-SELECT *
-    FROM 테이블 이름
-        CROSS JOIN 테이블 이름;
-```
+    ```
+    SELECT *
+        FROM 테이블 이름
+            CROSS JOIN 테이블 이름;
+    ```
 
 
 ### 자체 조인 (SELF JOIN)
 - 자기 자신을 조인하는 것
 - 한 개의 테이블을 사용함
 - 별도의 문법은 없고, 한 개의 테이블을 조인하면 자체 조인이 됨.
+
+
+## <SQL 프로그래밍>
+- __스토어드 프로시저__
+    - MYSQL에서 프로그래밍 기능이 필요할 대 사용하는 데이터베이스 개체
+    ```
+    DELIMITER $$
+    CREATE PROCEDURE 스토어드_프로시저_이름()
+    BEGIN
+        코딩
+    END $$
+    DELIMITER;
+    CALL 스토어드_프로시저_이름();
+    ```
+
+### IF문
+- 조건식이 참이면 SQL문장들을 실행하고, 아니면 그냥 넘어가는 것
+- SQL문장이 여러 문장이라면 BEGIN ~ END로 묶어줘야 함.
+    ```
+    IF 조건식 THEN
+        SQL문장들
+    END IF;
+    ```
+
+### IF ~ ELSE문
+- 조건식이 참일때와 참이 아닐 때 실행할 문장이 나뉘는 것.
+    ```
+    IF 조건식 THEN
+        SQL문장들
+    ELSE
+        SQL문장들
+    END IF;
+    ```
+
+### CASE문
+- 조건이 2가지 이상일 경우 사용
+- 조건이 여러 가지 경우일 때 처리가 가능하기 때문에 '다중 분기'라고도 함
+- 모든 조건이 만족되지 않으면 ELSE문으로 넘어감
+    ```
+    CASE
+        WHEN 조건1 THEN
+            SQL 문장들
+        WHEN 조건2 THEN
+            SQL 문장들
+        WHEN 조건3 THEN
+            SQL 문장들
+        ...
+        ELSE    
+            SQL 문장들
+    END CASE;
+    ```
+
+### WHILE문
+- 조건식이 참인 동안 SQL문장을 계속 반복   
+    ```
+    WHILE 조건식 DO
+        SQL 문장
+    END WHILE;
+    ```
+- ITERATE[레이블]: 지정한 레이블로 가서 계속 진행. 즉, 반복문의 처음으로 올라감
+- LEAVE[레이블]: 지정한 레이블을 빠져나감. 즉, WHILE문이 종료됨
+- "레이블이름:"(레이블 이름 뒤 콜론) 형태로 레이블 지정 가능
+    ```
+    mylable:    //lable 지정
+    WHILE 조건식 DO
+        IF  
+            SQL 문장~~
+            ITERATE mylable;
+        END IF;
+        IF
+            SQL 문장~~
+            LEAVE mylable;
+        END IF;
+    END WHILE;
+    ```
+
+## <동적 SQL>
+- SQL을 고정시키는 것이 아니고, 상황에 따라 내용 변경을 하기 위함
+- ```PREPARE```: SQL문을 실행하지 않고 준비해놓음.
+- ```EXECUTE```: 준비한 SQL문을 실행
+- 실행 후에는 CEALLOCATE PREPARE로 문장을 해제해주는 것이 바람직함.
+    ```    
+    PREPARE abc FROM 'SELECT name, height FROM table_A ORDER BY height LIMIT ?';
+    EXECUTE abc USING @count;
+    ```
