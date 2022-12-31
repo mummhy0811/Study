@@ -7,7 +7,7 @@
 <BR><bR>
 
 ## <테이블 생성>
-```
+```sql
 CREATE TABLE 테이블명(열_이름 데이터_타입 조건, 열_이름 데이터_타입 조건 ..);
 ```
 <BR>
@@ -15,7 +15,7 @@ CREATE TABLE 테이블명(열_이름 데이터_타입 조건, 열_이름 데이�
 ## <데이터 변경 문법 - 삽입, 업데이트, 삭제>
 - INSERT   
 	-> 테이블에 데이터를 삽입하는 명령   
-    ```
+    ```sql
 	INSERT INTO 테이블명 (열1, 열2 .. ) VALUES 값1, 값2 ..;
     ```
 	열 이름 생략 가능. 생략할 경우에 값들의 순서와 개수는 테이블의 열 순서 및 개수와 순서가 같아야 함   
@@ -33,27 +33,27 @@ CREATE TABLE 테이블명(열_이름 데이터_타입 조건, 열_이름 데이�
 - INSERT INTO ~ SELECT   
 	-> 조회한 값을 한 번에 입력하는 방법   
 	
-    ```
+    ```sql
     INSERT INTO 삽입할_테이블명 SELECT 열이름 FROM 조회_테이블명;
     ```
      
 - UPDATE	   
 	-> 기존에 입력되어 있는 값을 수정   
-    ```
+    ```sql
 	UPDATE 테이블명 SET 열1=값1, 열2=값2 .. WHERE 조건;
     ```
 	** 업데이트가 안 되는 경우 워크벤치 설정을 풀어줘야 함. (EDIT-PREFERENCE-SQL EDITOR-SAFEUPDATE체크 해제-워크벤치 재실행)
 	WHERE절을 뺄 경우 테이블 해당 열의 모든 값이 설정값으로 변경됨(주의 필요)
 - DELETE   
 	->테이블의 행데이터를 삭제
-    ```
-	ex) DELETE FROM 테이블명 WHERE 조건;
+    ```sql
+	DELETE FROM 테이블명 WHERE 조건;
     ```
 
 <BR><BR>
 
 ## <SELECT문>
-```
+```sql
 SELECT 열_이름 FROM 테이블 이름 WHERE 조건식 GROUP BY 열_이름 HAVING 조건식 ORDER BY 열_이름 LIMIT 숫자;
 ```
 
@@ -64,30 +64,30 @@ SELECT 열_이름 FROM 테이블 이름 WHERE 조건식 GROUP BY 열_이름 HAVI
 
 ### WHERE   
 - 조건을 주는 코드
-    ```
+    ```sql
     SELECT 열 이름 FROM 테이블 이름 WHERE 조건; 
     ```
 - AND(둘 다 만족)또는 OR(둘 중 하나만 만족)을 사용해서 조건 여러 개 사용 가능
 - BETWEEN    
 -> 숫자 범위 조건일 경우 BETWEEN 조건1 AND 조건2 의 형태로 사용 가능   
-    ``` 
+    ```sql
     //동일한 코드
     WHERE height >= 163 AND height <= 165; 
     WHERE height BETWEEN 163 AND 165;
-    ```   
+    ```
 - IN   
 -> 숫자 범위가 아니고, 여러 개 중 하나 만족일 경우 IN사용 가능
-	```
+    ```sql
     //동일한 코드
     WHERE addr = '경기' OR addr = '전남' OR addr = '경남'; 
     WHERE addr IN('경기', '전남', '경남');
     ```
-- LIKE    
+- LIKE  
 -> 문자를 비교. 정확하지 않은 글자를 조건으로 줄 때 사용.    
 '_'는 한 글자 '%'는 여러글자를 의미
-    ``` 	
+    ```sql
     WHERE mem_name LIKE '우%'; // '우'로 시작하는 회원 이름 검색. 뒤는 상관 없음
-   	WHERE mem_name LIKE '__핑크'; // 미지정 한 글자당 _ 하나로 표시
+    WHERE mem_name LIKE '__핑크'; // 미지정 한 글자당 _ 하나로 표시
     ```
 
 - db이름.테이블 이름    
@@ -97,7 +97,7 @@ SELECT 열_이름 FROM 테이블 이름 WHERE 조건식 GROUP BY 열_이름 HAVI
 	-> 별칭을 주는 방법. 띄어쓰기하고 뒤에 별칭을 적어주면 됨   
 	별칭에 띄어쓰기가 있을 경우 큰따옴표로 묶어주기   
 
-	```
+	```sql
     SELECT 열 이름 별칭, 열 이름2 별칭2 FROM 테이블 이름; 
     ```
     
@@ -110,7 +110,7 @@ SELECT 열_이름 FROM 테이블 이름 WHERE 조건식 GROUP BY 열_이름 HAVI
 	* DESC   
     -> 내림차순 정렬
 	동률일 경우 해결할 조건을 여러 개 줄 수 있음. 앞에 나온 조건이 우선적으로 처리됨
-	```
+	```sql
     ORDER BY height DESC, debut_date ASC; 
         -> 키를 기준으로 정렬 후 동률인 열에 대해 데뷔일 기준 재정렬
     ```
@@ -119,7 +119,7 @@ SELECT 열_이름 FROM 테이블 이름 WHERE 조건식 GROUP BY 열_이름 HAVI
 - ```LIMIT a, b; ```로 할 경우 a번째부터 b개 행만큼 출력
 ### DISTINCT   
 - 중복된 데이터를 하나로만 보여줌  
-    ```
+    ```sql
         SELECT DISTINCT addr FROM member; 
             -> 멤버 테이블에 있는 주소 열을 중복되지 않게 출력
     ```
@@ -132,14 +132,14 @@ SELECT 열_이름 FROM 테이블 이름 WHERE 조건식 GROUP BY 열_이름 HAVI
 	MAX() - 최대값을 구함   
 	COUNT() - 행 개수를 셈 -> 열 이름을 ()안에 적어줄 경우 NULL값을 제외한 나머지 행을 count   
 	COUNT(DISTINCT) - 중복을 제외하여 행 개수를 셈   
-    ```
+    ```sql
 	SELECT mem_id, SUM(amount) FROM buy GROUP BY mem_id; 
         -> buy테이블의 member_id열을 선택하는데, mem_id별로 구매 양 합계를 구해서 출력
     ```
 	
 ### HAVING    
 - 그룹 함수에서 조건을 쓸 경우 WHERE절이 아닌 HAVING에 넣어줘야 함.   
-    ```
+    ```sql
     SELECT mem_id, SUM(amount*amount) FROM buy GROUP BY mem_id HAVING SUM(amount*amount)>1000 ; 
         ->  buy테이블의 member_id열을 선택하는데, mem_id별로 총 구매 금액을 구해서 1000이 넘는 행만 출력
     ```
@@ -219,7 +219,7 @@ SELECT 열_이름 FROM 테이블 이름 WHERE 조건식 GROUP BY 열_이름 HAVI
 
 <BR><BR>
 ## <변수>
-```
+```sql
 SET @변수이름 = 값;         //변수 선언과 동시에 값 대입
 SELECT @변수이름;          //변수 값 출력
 
@@ -230,7 +230,7 @@ SET 변수이름 = 값; //변수에 값 대입
 ```
 - 영구저장되는 것이 아니라 임시저장
 - SELECT문의 LIMIT에는 사용할 수 없기 때문에, PREPARE과 EXECUTE문 사용
-    ```
+    ```sql
     SET 변수명=값;
     PREPARE 이름 FROM '원하는 구문 ?';
     EXECUTE 이름 USING @변수명;
@@ -248,7 +248,7 @@ SET 변수이름 = 값; //변수에 값 대입
 ### 명시적인 변환
 - 함수를 사용해서 ```강제로``` 변환하는 것
 -  CAST, CONVERT 함수 사용
-    ```
+    ```sql
     //결과는 동일, 형태만 다름. 길이는 생략 가능
     CAST(값 AS 데이터형식 길이)
     CONVERT(값, 데이터형식 길이)
@@ -270,7 +270,7 @@ SET 변수이름 = 값; //변수에 값 대입
 ### 내부 조인 (INNER JOIN)
 - 조인 중에서 가장 많이 사용됨
 - 일대 다의 관계가 이루어져 있어야 함
-    ```
+    ```sql
     SELECT <열 목록>
     FROM 첫_번째_테이블
         INNER JOIN 두_번째_테이블
@@ -288,7 +288,7 @@ SET 변수이름 = 값; //변수에 값 대입
 
 ### 외부 조인 (OUTER JOIN)
 - 내부 조인의 한계점을 극복. 한 개의 테이블에만 데이터가 있어도 결과 도출 가능
-    ```
+    ```sql
     SELECT <열 목록>
     FROM 첫_번째_테이블(LEFT 테이블)
         <LEFT | RIGHT | FULL> OUTER JOIN 두_번째_테이블(RIGHT 테이블)
@@ -309,7 +309,7 @@ SET 변수이름 = 값; //변수에 값 대입
 - 한쪽 테이블의 모든 행과 다른 쪽 테이블의 모든 행을 조인시키는 것
 - 상호 조인 결과 전체 행 개수는 두 테이블의 행 개수를 곱한 만큼이 됨
 - ON 구문은 사용X
-    ```
+    ```sql
     SELECT *
         FROM 테이블 이름
             CROSS JOIN 테이블 이름;
@@ -325,7 +325,7 @@ SET 변수이름 = 값; //변수에 값 대입
 ## <SQL 프로그래밍>
 - __스토어드 프로시저__
     - MYSQL에서 프로그래밍 기능이 필요할 대 사용하는 데이터베이스 개체
-    ```
+    ```sql
     DELIMITER $$
     CREATE PROCEDURE 스토어드_프로시저_이름()
     BEGIN
@@ -338,7 +338,7 @@ SET 변수이름 = 값; //변수에 값 대입
 ### IF문
 - 조건식이 참이면 SQL문장들을 실행하고, 아니면 그냥 넘어가는 것
 - SQL문장이 여러 문장이라면 BEGIN ~ END로 묶어줘야 함.
-    ```
+    ```sql
     IF 조건식 THEN
         SQL문장들
     END IF;
@@ -346,7 +346,7 @@ SET 변수이름 = 값; //변수에 값 대입
 
 ### IF ~ ELSE문
 - 조건식이 참일때와 참이 아닐 때 실행할 문장이 나뉘는 것.
-    ```
+    ```sql
     IF 조건식 THEN
         SQL문장들
     ELSE
@@ -358,7 +358,7 @@ SET 변수이름 = 값; //변수에 값 대입
 - 조건이 2가지 이상일 경우 사용
 - 조건이 여러 가지 경우일 때 처리가 가능하기 때문에 '다중 분기'라고도 함
 - 모든 조건이 만족되지 않으면 ELSE문으로 넘어감
-    ```
+    ```sql
     CASE
         WHEN 조건1 THEN
             SQL 문장들
@@ -374,7 +374,7 @@ SET 변수이름 = 값; //변수에 값 대입
 
 ### WHILE문
 - 조건식이 참인 동안 SQL문장을 계속 반복   
-    ```
+    ```sql
     WHILE 조건식 DO
         SQL 문장
     END WHILE;
@@ -382,7 +382,7 @@ SET 변수이름 = 값; //변수에 값 대입
 - ITERATE[레이블]: 지정한 레이블로 가서 계속 진행. 즉, 반복문의 처음으로 올라감
 - LEAVE[레이블]: 지정한 레이블을 빠져나감. 즉, WHILE문이 종료됨
 - "레이블이름:"(레이블 이름 뒤 콜론) 형태로 레이블 지정 가능
-    ```
+    ```sql
     mylable:    //lable 지정
     WHILE 조건식 DO
         IF  
@@ -401,7 +401,7 @@ SET 변수이름 = 값; //변수에 값 대입
 - ```PREPARE```: SQL문을 실행하지 않고 준비해놓음.
 - ```EXECUTE```: 준비한 SQL문을 실행
 - 실행 후에는 CEALLOCATE PREPARE로 문장을 해제해주는 것이 바람직함.
-    ```    
+    ```sql    
     PREPARE abc FROM 'SELECT name, height FROM table_A ORDER BY height LIMIT ?';
     EXECUTE abc USING @count;
     ```
@@ -414,7 +414,7 @@ SET 변수이름 = 값; //변수에 값 대입
 - 중복되지 않고, 비어있지 않음
 - 기본 키로 생성한 것은 자동으로 클러스터형 인덱스가 생성됨
 - 각 테이블당 기본 키 1개만 가능
-    ```
+    ```sql
     //방법1
      //원하는 열에 PRIMARY KEY 입력
     CREATE TABLE member 
@@ -450,7 +450,7 @@ SET 변수이름 = 값; //변수에 값 대입
 - 외래키가 설정된 열은 다른 테이블(기준 테이블)의 기본 키와 연결됨
 - 참조 테이블이 참조하는 기준 테이블의 열은 반드시 기본 키나 고유 키로 설정되어있어야 함
 - 외래 키는 무조건 기준 테이블에 존재함 ( 외래 키가 기준 테이블에 존재하지 않으면 참조 테이블에 입력 불가 -> 데이터의 무결성)
-    ```
+    ```sql
     //방법1
     //FOREIGN KEY(열이름) REFERENCES 기준테이블명(열이름)
     CREATE TABLE buy 
@@ -483,7 +483,7 @@ SET 변수이름 = 값; //변수에 값 대입
     -> 데이터에 결함이 생기는 것을 막기 위함   
         -> ```ON UPDATE(DELETE) CASCADE``` 사용    
         -> 기준 테이블의 데이터가 변동되면 참조 테이블의 데이터도 변동됨
-    ```
+    ```sql
     ALTER TABLE buy
     ADD CONSTRAINT 
     FOREIGN KEY(mem_id) REFERENCES member(mem_id)
@@ -499,7 +499,7 @@ SET 변수이름 = 값; //변수에 값 대입
 ### DEFAULT 정의 (기본 값 정의)
 - 값을 입력하지 않았을 때 자동으로 입력될 값을 미리 정해놓는 것
 - __DEFAULT 값__ 형식 또는 아래의 ALTER TABLE 형식으로 사용
-    ```
+    ```sql
     ALTER TABLE 테이블명
         ALTER COLUMN 열이름 SET DEFAULT 값;
     ```
