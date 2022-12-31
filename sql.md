@@ -405,3 +405,105 @@ SET 변수이름 = 값; //변수에 값 대입
     PREPARE abc FROM 'SELECT name, height FROM table_A ORDER BY height LIMIT ?';
     EXECUTE abc USING @count;
     ```
+
+<BR><BR>
+## <제약 조건>
+- 데이터의 결함을 없도록 하기 위해(데이터의 무결성 보장을 위해) 제한하는 조건
+### PRIMARY KEY 제약조건 (기본 키 제약조건)
+- 행을 구분할 수 있는 식별자
+- 중복되지 않고, 비어있지 않음
+- 기본 키로 생성한 것은 자동으로 클러스터형 인덱스가 생성됨
+- 각 테이블당 기본 키 1개만 가능
+    ```
+    //방법1
+     //원하는 열에 PRIMARY KEY 입력
+    CREATE TABLE member 
+    ( mem_id  CHAR(8) NOT NULL PRIMARY KEY,  
+    mem_name    VARCHAR(10) NOT NULL, 
+    height      TINYINT UNSIGNED NULL
+    );
+
+    //방법2
+    //마지막에 PRIMARY KEY(열 이름) 입력
+    CREATE TABLE member 
+    ( mem_id  CHAR(8) NOT NULL, 
+    mem_name    VARCHAR(10) NOT NULL, 
+     height      TINYINT UNSIGNED NULL,
+     PRIMARY KEY (mem_id) 
+    );
+
+    //방법3
+    //테이블을 모두 만든 후 수정으로 기본 키 설정
+    CREATE TABLE member 
+    ( mem_id  CHAR(8) NOT NULL, 
+    mem_name    VARCHAR(10) NOT NULL, 
+    height      TINYINT UNSIGNED NULL
+    );
+    ALTER TABLE member 
+        ADD CONSTRAINT 
+        PRIMARY KEY (mem_id);
+    ```
+### FOREIGN KEY 제약조건 (외래 키 제약조건)
+- 두 테이블 사이의 관계를 연결해주고, 그 결과 데이터의 무결성을 보장해주는 역할
+- ```기준 테이블```: 기본 키를 가진 테이블
+- ```참조 테이블```: 외래 키를 가진 테이블
+- 외래키가 설정된 열은 다른 테이블(기준 테이블)의 기본 키와 연결됨
+- 참조 테이블이 참조하는 기준 테이블의 열은 반드시 기본 키나 고유 키로 설정되어있어야 함
+- 외래 키는 무조건 기준 테이블에 존재함 ( 외래 키가 기준 테이블에 존재하지 않으면 참조 테이블에 입력 불가 -> 데이터의 무결성)
+    ```
+    //방법1
+    //FOREIGN KEY(열이름) REFERENCES 기준테이블명(열이름)
+    CREATE TABLE buy 
+    (  num         INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    mem_id      CHAR(8) NOT NULL, 
+    prod_name     CHAR(6) NOT NULL, 
+    FOREIGN KEY(mem_id) REFERENCES member(mem_id)
+    );
+
+    //방법2
+    //PK와 FK 두 열 이름이 꼭 같을 필요는 없으나, 권장하지 않음. 같은 의미이기 때문에 같은 열 이름을 사용하는 것을 추천
+    CREATE TABLE buy 
+    (  num         INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    user_id      CHAR(8) NOT NULL, 
+    prod_name     CHAR(6) NOT NULL, 
+    FOREIGN KEY(user_id) REFERENCES member(mem_id)
+    );
+
+    //방법3
+    CREATE TABLE buy 
+    (  num         INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    mem_id      CHAR(8) NOT NULL, 
+    prod_name     CHAR(6) NOT NULL
+    );
+    ALTER TABLE buy
+        ADD CONSTRAINT 
+        FOREIGN KEY(mem_id) REFERENCES member(mem_id);
+    ```
+- PK-FK 관계가 성립되면 기준 테이블에서 정보 UPDATE / DELETE 불가   
+    -> 데이터에 결함이 생기는 것을 막기 위함   
+        -> ```ON UPDATE(DELETE) CASCADE``` 사용    
+        -> 기준 테이블의 데이터가 변동되면 참조 테이블의 데이터도 변동됨
+    ```
+    ALTER TABLE buy
+    ADD CONSTRAINT 
+    FOREIGN KEY(mem_id) REFERENCES member(mem_id)
+    ON UPDATE CASCADE
+    ON DELETE CASCADE;
+    ```
+### UNIQUE 제약조건 (고유 키 제약조건)
+- 중복되지 않는 유일한 값을 입력해야 하는 조건
+- 고유 키와 비슷하지만, NULL값을 허용한다는 점과 테이블에 여러 개를 설정해도 된다는 점에서 다름.
+### CHECK 제약조건
+- 데이터를 입력받을 때 특정 범위 혹은 특정 값만 입력되도록 체크하는 제약조건
+- __CHECK( 조건 )__ 형식으로 사용
+### DEFAULT 정의 (기본 값 정의)
+- 값을 입력하지 않았을 때 자동으로 입력될 값을 미리 정해놓는 것
+- __DEFAULT 값__ 형식 또는 아래의 ALTER TABLE 형식으로 사용
+    ```
+    ALTER TABLE 테이블명
+        ALTER COLUMN 열이름 SET DEFAULT 값;
+    ```
+### NULL 값 허용
+- NULL값을 허용하려면 NULL을 입력하거나 생략하고, 허용하지 않으려면 NOT NULL을 입력해주면 됨
+- PK로 설정된 열은 NULL값을 사용할 수 없으므로 생략하면 자동으로 NOT NULL로 인식됨
+- 공백이나 0과는 다름
