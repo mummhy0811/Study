@@ -94,11 +94,11 @@ SELECT 열_이름 FROM 테이블 이름 WHERE 조건식 GROUP BY 열_이름 HAVI
 	-> 테이블이 어디 db에 있는지 명시하는 방법.    
 	다른 db를 잠시 use할 때 사용. 그러나 보통 여러 db를 한 번에 사용하는 경우가 많이 없기 때문에 잘 사용하지는 않음 
 - Alias    
-	-> 별칭을 주는 방법. 띄어쓰기하고 뒤에 별칭을 적어주면 됨   
+	-> 별칭을 주는 방법. 띄어쓰기하고 뒤에 별칭을 적어주거나, AS를 사용하면 됨   
 	별칭에 띄어쓰기가 있을 경우 큰따옴표로 묶어주기   
 
 	```sql
-    SELECT 열 이름 별칭, 열 이름2 별칭2 FROM 테이블 이름; 
+    SELECT 열 이름 AS 별칭, 열 이름2 "다른 별칭" FROM 테이블 이름; 
     ```
     
 
@@ -496,6 +496,17 @@ SET 변수이름 = 값; //변수에 값 대입
 ### CHECK 제약조건
 - 데이터를 입력받을 때 특정 범위 혹은 특정 값만 입력되도록 체크하는 제약조건
 - __CHECK( 조건 )__ 형식으로 사용
+    ```sql
+    CREATE TABLE buy 
+    (  num         INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+    mem_id      CHAR(8) NOT NULL, 
+    prod_name     CHAR(6) NOT NULL, 
+    height INT CHECK(조건) -- 방법1
+    CONSTRAINT 조건명 CHECK(조건) -- 방법2
+    );
+
+    ALTER TABLE 테이블명 ADD CONSTRAINT 조건명 CHECK 조건; -- 방법 3 기존 테이블에 조건 추가
+    ```
 ### DEFAULT 정의 (기본 값 정의)
 - 값을 입력하지 않았을 때 자동으로 입력될 값을 미리 정해놓는 것
 - __DEFAULT 값__ 형식 또는 아래의 ALTER TABLE 형식으로 사용
@@ -507,3 +518,88 @@ SET 변수이름 = 값; //변수에 값 대입
 - NULL값을 허용하려면 NULL을 입력하거나 생략하고, 허용하지 않으려면 NOT NULL을 입력해주면 됨
 - PK로 설정된 열은 NULL값을 사용할 수 없으므로 생략하면 자동으로 NOT NULL로 인식됨
 - 공백이나 0과는 다름
+
+<br><br>
+## <뷰>
+- 데이터베이스 개체 중 하나
+- ```가상의 테이블```이라고 표현되기도 함
+- 테이블의 필요한 내용만 보이도록 함   
+    -> SELECT문으로 만들어져 있어 뷰에 접근하는 순간 SELECT가실행되고, 그 결과가 화면에 출력됨   
+    -> 뷰에는 데이터가 없다!
+- 뷰가 생성된 상태에서 참조된 테이블을 삭제하고 뷰를 SELECT하면 오류 발생   
+    -> 참조할 테이블이 사라졌기 때문
+- __단순뷰__: 하나의 테이블과 연결된 뷰
+- __복합뷰__: 두 개 이상의 테이블과 연관된 뷰   
+
+### 뷰의 생성 및 접근   
+```SQL
+    -- 생성 방법
+    CREATE VIEW 뷰_이름
+    AS
+        SELECT 문;
+
+    -- 접근 방법
+    SELECT 열 FROM 뷰_이름 WHERE 조건;
+```
+
+- 뷰를 사용하는 이유
+    1. 보안에 도움이 됨
+    2. 복잡한 SQL을 단순하게 만들 수 있음
+    ```SQL
+    -- 자주 사용하는 복잡한 쿼리문
+    SELECT B.mem_id, M.mem_name, B.prod_name, M.addr, 
+        CONCAT(M.phone1, M.phone2) '연락처' 
+    FROM buy B
+     INNER JOIN member M
+     ON B.mem_id = M.mem_id;
+
+    -- 뷰로 만들어서 간단하게 재사용
+    CREATE VIEW v_memberbuy
+    AS
+        SELECT B.mem_id, M.mem_name, B.prod_name, M.addr, 
+                CONCAT(M.phone1, M.phone2) '연락처' 
+        FROM buy B
+            INNER JOIN member M
+            ON B.mem_id = M.mem_id;
+
+    SELECT * FROM v_memberbuy WHERE mem_name = '블랙핑크';
+    ```   
+
+### 뷰의 별명
+- 컬럼에 별칭을 주어 사용할 수 있으며, 별명을 이용해서 조회할 경우 백틱(`)사용
+    ```SQL
+    CREATE VIEW 뷰이름
+    AS
+        SELECT 테이블별명.열1 '별명 1', 테이블별명.열2 AS '별명 2'
+        FROM 테이블1 테이블별명
+            INNER 테이블2 member 테이블별명
+            ON 조건;
+            
+    SELECT  DISTINCT `별명 1`, `별명 2` FROM 뷰이름;
+    ```
+
+### 뷰의 정보 확인
+- 기존 뷰의 정보를 확인
+    ```SQL
+    DESCRIBE 뷰이름;
+    ```
+- 뷰 생성 구문 확인
+    ```SQL
+    SHOW CREATE VIEW 뷰이름;
+    ```
+### 뷰를 통해 데이터 수정
+- 뷰를 통해 테이블의 데이터수정 가능
+    ```SQL
+    UPDATE 뷰이름 SET ~ WHERE 조건;
+    ```
+- 그러나 데이터 INSERT를 하고싶다면 NOT NULL인 값을 뷰를 통해 모두 입력할 수 있어야 함   
+    -> 뷰를 통해 데이터를 입력하는 것은 권장되지 않음
+
+
+
+
+
+<BR><BR><BR><BR><BR><BR>
+
+---   
+JOIN 이미지 출처 <https://hongong.hanbit.co.kr/sql-%ea%b8%b0%eb%b3%b8-%eb%ac%b8%eb%b2%95-joininner-outer-cross-self-join/>
