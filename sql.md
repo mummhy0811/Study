@@ -1,7 +1,6 @@
 # MY SQL 기초
 
 ## <기초 정보>
-- PRIMARY KEY(PK) : 기본 키. 중복되지 않고, 비어있지도 않은 키
 - SCHEMAS 창에 굵은 글씨로 표시된 db가 현재 사용중인 db
 - 세미콜론(;)이 나올 때까지는 한 문장.
 <BR><bR>
@@ -400,7 +399,7 @@ SET 변수이름 = 값; //변수에 값 대입
 - SQL을 고정시키는 것이 아니고, 상황에 따라 내용 변경을 하기 위함
 - ```PREPARE```: SQL문을 실행하지 않고 준비해놓음.
 - ```EXECUTE```: 준비한 SQL문을 실행
-- 실행 후에는 CEALLOCATE PREPARE로 문장을 해제해주는 것이 바람직함.
+- 실행 후에는 REALLOCATE PREPARE로 문장을 해제해주는 것이 바람직함.
     ```sql    
     PREPARE abc FROM 'SELECT name, height FROM table_A ORDER BY height LIMIT ?';
     EXECUTE abc USING @count;
@@ -596,10 +595,128 @@ SET 변수이름 = 값; //변수에 값 대입
     -> 뷰를 통해 데이터를 입력하는 것은 권장되지 않음
 
 
+<BR><BR>
 
+## <인덱스>
+책의 제일 뒤, 단어 찾아보기와 비슷한 개념. 원하는 정보가 있는 곳으로 빠르게 이동할 수 있음
+
+### 장점
+- SELECT문으로 검색하는 속도가 빨라진다
+- 컴퓨터의 부담이 줄어들어 전체 시스템의 성능이 향상된다
+
+### 단점
+- 데이터베이스 안에 추가적인 공간이 필요하다 (테이블 크기의 약 10%)
+- SELECT가 아닌 데이터 변경 작업(INSERT, UPDATE, DELETE)이 자주 일어나면 성능이 나빠질 수 있다
+- 처음 인덱스를 만드는 데 시간이 오래 걸릴 수 있다. (페이지 분할이 일어나기 때문_아래 설명 참고)   
+    -> 처음부터 인덱스를 같이 만드는 것이 좋다
+
+### 인덱스 종류
+1. 클러스터형 인덱스    
+    - 내용 자체가 인덱스이며, ABC순으로 정렬되어 있음 ex)사전   
+    - 테이블에 하나씩만 생성 가능   
+2. 보조 인덱스  
+    - 내용과 인덱스가 구분되어 있음. ex) 일반 책 뒤의 찾아보기   
+    - 테이블에 여러 개 생성 가능
+- 자동으로 생성되는 인덱스   
+    - PK로 지정하면 자동으로 클러스터형 인덱스가 생성됨 -> 자동으로 정렬
+    - UNIQUE로 지정하면 자동으로 보조 인덱스가 생성됨
+
+### 인덱스의 생성과 제거
+- 인덱스 생성
+    ```SQL
+    CREATE [UNIQUE]INDEX 인덱스명
+        ON 테이블명 (열이름) [ASC|DESC]
+    ```
+    - 보조 인덱스로 생성됨
+    - UNIQUE는 중복이 안 되는 고유 인덱스를 만드는 것. 생략 가능
+    - ASC와 DESC는 오름차순 / 내림차순 지정. 기본은 ASC
+- 인덱스 제거
+    ```SQL
+    DROP INDEX 인덱스명 ON 테이블명
+    ```
+    - 자동으로 생성되는 인덱스의 경우 삭제 불가(PK나 UNIQUE로 자동생성 되는 것들. 얘네들은 PK나 UNIQUE설정을 지워주면 자동으로 인덱스가 삭제됨)
+    ```SQL
+    -- PK-FK 관계에서 PK를 먼저 지우려고 하면 오류 발생 -> FK를 먼저 지워줘야 함
+    -- 외래키 위치 파악하는 코드 -> 결과에 나오는 테이블명과 키 이름 확인
+    SELECT table_name, constraint_name
+        FROM information_schema.referential_constraints
+        WHERE constraint_schema = DB이름;
+    -- 외래키 해제
+    ALTER TABLE 테이블명 
+        DROP FOREIGN KEY 외래키 이름;
+    -- PK 해제
+    ALTER TABLE 테이블명 
+        DROP PRIMARY KEY;
+    ```
+- 인덱스 확인
+    ```SQL
+    SHOW INDEX FROM 테이블명
+    ```
+    - 어떤 인덱스가 설정되어 있는지 확인 가능
+    - NON-UNIQUE는 중복을 허용하지 않냐?라는 의미. 클러스터형이면 1, 아니면 0으로 나타남   
+    - KEY NAME에 PRIMARY라고 쓰여있으면 클러스터형 인덱스, 아니면 보조 인덱스   
+    ```SQL
+    SHOW TABLE STATUS LIKE 테이블명
+    ```
+    - INDEX_LENGTH를 통해 인덱스의 크기 확인 가능   
+> 📌 인덱스 생성 후 ```ANALYZE TABLE 테이블명``` 을 입력해줘야 적용됨   
+
+---
+
+### __인덱스의 내부 작동__
+- __FULL TABLE SCAN__: 데이터를 처음부터 끝까지 검색하는 것   
+- 인덱스를 사용할지 FULL TABLE SCAN을 사용할지는 MYSQL이 알아서 결정함
+- 인덱스는  SELECT문의 WHERE절 뒤의 구문에 사용됨   
+    -> 해당 구문에 어떠한 가공을 할 경우 인덱스가 사용되지 않음
+    ```SQL
+    -- 인덱스 사용X
+    SELECT A열, B열 FROM 테이블명
+    WHERE A열*2 >= 14;     
+    
+    -- 인덱스 사용O
+    SELECT A열, B열 FROM 테이블명
+    WHERE A열 >= 14/2; 
+    ```
+- 클러스터형 인덱스와 보조 인덱스는 모두 ```균형트리```로 만들어짐
+### 균형트리
+<img src="images/sql/균형트리.jpg" width="30%"/> <BR>
+- 노드: 데이터가 저장되는 공간. MYSQL에서는 페이지라고 부름   
+    ->  하나의 페이지는 16KB 
+- 루트 노드: 가장 상위 노드. 리프 노드의 가장 위의 데이터를 가지고 있음.
+- 리프 노드: 가장 마지막 노드
+- 중간 노드: 루트 노드와 리프 노드 사이에 있는 노드   
+
+> 위의 그림에서 MMM 탐색   
+- 리프 페이지로만 이루어져 있을 경우   
+    -> MMM을 찾을 때 AAA부터 MMM까지 6건의 데이터(세 개의 페이지) 검색 필요   
+- 루트 페이지가 있는 경우   
+    -> 루트페이지의 AAA, FFF, LLL을 검색한 후 세 번째 리프 페이지로 이동하여 LLL, MMM두 건의 데이터만 검색. 총 5건의 데이터, 두 개의 페이지 검색   
+=> 효율성은 몇 개의 페이지를 읽었느냐로 판단. 따라서 ```균형 테이블 형태로 이루어져있을 경우 효율성이 더 좋다.```
+
+
+### 균형 트리의 페이지 분할
+- 데이터 입력 시 페이지에 공간이 없는 경우 새 페이지를 준비해 데이터를 나누는 작업   
+    1. 새 페이지 준비
+    2. 데이터 분할
+    3. 새 페이지 루트에 등록
+    4. 루트 페이지가 꽉 찼을 경우, 분할하여 새 루트 페이지 생성 -> 중간 페이지가 만들어짐
+- MYSQL이 느려지고, 자주 일어날 경우 성능에 큰 영향을 줌
+
+---
+### __인덱스의 구조__
+- 클러스터형 인덱스   
+<img src="images/sql/INDEX1.jpg" width="30%"/> <BR>  
+    - 리프 페이지와 데이터 페이지 형태 동일. 리프 페이지가 데이터 페이지임
+- 보조 인덱스   
+<img src="images/sql/INDEX2.jpg" width="30%"/> <BR>
+    - 데이터 페이지와 리프 페이지는 별개.
+    - 데이터 페이지는 정렬되지 않고 리프 페이지만 정렬됨.
+    - 리프 페이지에 데이터의 위치를 저장하는데, "1001+#4"는 1001페이지의 4번째 데이터라는 의미
 
 
 <BR><BR><BR><BR><BR><BR>
 
 ---   
-JOIN 이미지 출처 <https://hongong.hanbit.co.kr/sql-%ea%b8%b0%eb%b3%b8-%eb%ac%b8%eb%b2%95-joininner-outer-cross-self-join/>
+JOIN 이미지 출처 <https://hongong.hanbit.co.kr/sql-%ea%b8%b0%eb%b3%b8-%eb%ac%b8%eb%b2%95-joininner-outer-cross-self-join/>   
+균형트리 이미지 출처 - 혼자 공부하는 SQL TERM NOTE<https://hongong.hanbit.co.kr/wp-content/uploads/2021/11/%ed%98%bc%ec%9e%90-%ea%b3%b5%eb%b6%80%ed%95%98%eb%8a%94-SQL_%ec%9a%a9%ec%96%b4%eb%85%b8%ed%8a%b8.pdf>   
+인덱스 이미지 출처 - 혼자 공부하는 SQL교재
