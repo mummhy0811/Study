@@ -45,3 +45,55 @@
 - 스프링 컨테이너에 등록된 객체를 __스프링 빈__ 이라고 함
 - 스프링 빈은 @Bean이 붙은 메서드의 명을 스프링 빈의 이름으로 사용
 - ```applicationContext.getBean()``` 메서드를 통해 필요한 스프링 빈(객체)를 찾음
+
+<br>
+
+### 스프링 컨테이너 생성
+``` java
+ApplicationContext applicationContext = new AnnotationCongifApplicationContext(AppConfig.class);
+```
+- ApplicationContext는 인터페이스
+- 스프링 컨테이너는 XML을 기반으로 만들 수 있고, 애노테이션 기반의 자바 설정 클래스로도 만들 수 있음
+- ```AppConfig```를 사용했던 방식이 애노테이션 기반의 자바 설정 클래스로 스프링 컨데이너를 만든 것.
+
+### 과정
+1. ```new AnnotationCongifApplicationContext(AppConfig.class)```를 통해 AppConfig정보를 파라미터로 넘기며(구성 정보를 지정해주며) __스프링 컨테이너 생성__
+2. 스프링 컨테이는 파라미터로 넘어온 설정 클래스 정보를 사용하여 __스프링빈 등록__.  (```@Bean``` 탐색)
+    - ```@Bean```을 찾아가 빈 이름에는 메서드 이름을, 빈 객체에는 리턴값을 저장
+    - ```@Bean(name="memberService2")``` 와 같이 빈 이름 직접 부여 가능 -> 빈 이름이 중복되지 않도록 주의 필요
+3. 스프링 컨테이너는 설정 정보를 참고해서 __의존관계를 주입(DI)__ 함. (@Bean 리턴값의 파라미터를 통해)
+
+<br>
+
+## 스프링빈 조회 - 테스트코드로
+1. 모든 빈 출력
+    - 스프링에 등록된 모든 빈 정보를 출력
+    - ```ac.getBeanDefinitionNames()``` : 스프링에 등록된 모든 빈 이름을 조회
+    - ```ac.getBean()``` : 빈 이름으로 빈 객체(인스턴스)를 조회
+2. 애플리케이션 빈 출력
+    - 내가 등록한 빈만 출력
+    - ROLE_APPLICATION : 일반적으로 사용자가 정의한 빈
+    - ROLE_INFRASTRUCTURE : 스프링이 내부에서 사용하는 빈
+    ``` java
+        if (beanDefinition.getRole() == BeanDefinition.ROLE_APPLICATION) { 
+            Object bean = ac.getBean(beanDefinitionName);
+            System.out.println("name=" + beanDefinitionName + " object=" +bean);
+        }
+    ```
+3. 기본 조회
+    - 빈 이름으로 조회: ```ac.getBean(빈 이름, 타입)```
+    - 빈 이름 없이 타입으로 조회: ```ac.getBean(타입)```
+    - 조회 대상 스프링빈이 없으면 예외 발생 -> ```NoSuchBeanDefinitionException: No bean named 'xxxxx' available```
+    - 예외 조회(예외가 발생해야 테스트 통과) -> ```Assertions.assertThrows(NoSuchBeanDefinitionException.class, () -> ac.getBean("xxxxx", MemberService.class));```   
+4. 동일한 타입이 둘 이상인 타입조회
+    - 타입으로 조회시 같은 타입의 스프링 빈이 둘 이상이면 오류가 발생 (```NoUniqueBeanDefinitionException```)-> 빈 이름을 지정하면 됨
+    - ```ac.getBeansOfType()``` : 해당 타입의 모든 빈 조회
+    ```java
+        Map<String, MemberRepository> beansOfType = ac.getBeansOfType(MemberRepository.class);
+        System.out.println("beansOfType = " + beansOfType);
+    ```
+5. 상속관계인 경우의 조회
+    - 부모 타입으로 조회하면 자식 타입도 함께 조회됨
+    - 자바 객체 최고의 부모인 ```Object```타입으로 조회하면 모든 스프링빈 조회 가능
+    - 부모 타입으로 조회시, 자식이 둘 이상이면 중복오류 발생 -> 빈 이름 지정 또는 특정 하위타입으로 조회 필요
+
