@@ -97,3 +97,83 @@ ApplicationContext applicationContext = new AnnotationCongifApplicationContext(A
     - 자바 객체 최고의 부모인 ```Object```타입으로 조회하면 모든 스프링빈 조회 가능
     - 부모 타입으로 조회시, 자식이 둘 이상이면 중복오류 발생 -> 빈 이름 지정 또는 특정 하위타입으로 조회 필요
 
+
+<br>
+
+---
+
+<br>
+
+## BeanFactory 와 ApplicationContext
+
+### BeanFactory
+- 스프링 컨테이너의 최상위 인터페이스
+- 스프링빈을 관리하고 조회하는 역할 담당
+- ```getBean()``` 을 제공
+
+### ApplicationContext
+- BeanFactory 기능을 모두 상속받아서 제공
+- 빈을 관리하고 검색하는 기능(BeanFactory의 기능)은 물론, 부가기능까지 제공
+- 부가 기능
+    - MessageSource (메세지 소스를 이융한 국제화 기능) 
+    - EnvironmentCapable (환경변수): 로컬, 개발, 운영등을 구분해서 처리
+    - ApplicationEventPublisher (애플리케이션 이벤트): 이벤트를 발행하고 구독하는 모델을 편리하게 지원
+    - ResourceLoader (편리한 리소스 조회): 파일, 클래스패스, 외부 등에서 리소스를 편리하게 조회
+
+<br>
+
+---
+
+<br>
+
+
+## 싱글톤 패턴과 컨테이너
+- 스프링 없는 순수한 DI컨테이너인 AppConfig는 요청할 때마다 객체를 새로 생성 -> 메모리 낭비가 심하다
+- 해결방안: 객체를 1개만 생성하여 이를 공유하도록 설계한다 -> ```싱글톤 패턴```
+
+<br>
+
+### 싱글톤 패턴
+- 클래스의 인스턴스가 1개만 생성되도록 보장하는 디자인 패턴
+
+    ``` java
+    public class SingletonService {
+
+        private static final SingletonService instance = new SingletonService();
+        //private static으로 선언 -> 자기 안에 딱 하나만 존재. 객체를 생성해서 instance에 참조를 넣어둠.
+
+        public static SingletonService getInstance(){ //조회
+            return instance;
+        }
+
+        private SingletonService(){ }
+    }
+    ```
+
+- static 영역애 객체 isntance를 미리 하나 생성 (java가 실행될 때)
+- 해당 인스턴스가 필요하면 ```getInstance()``` 를 통해서만 조회 가능 -> 항상 같은 인스턴스 반환
+- 생성자를 ``private`` 로 설정하여 외부에서 new 키워드로 새 객체 인스턴스가 생성되는 것을 막아 딱 한 개의 인스턴스만 존재하도록 함.
+
+- __싱글톤 패턴의 문제점__
+    - 싱글톤 패턴 구현 코드 자체가 김
+    - 의존관계상 클라이언트가 구체 클래스에 의존 -> DIP 위반, OCP 원칙을 위반할 가능성이 높음
+    - 테스트 힘듦
+    - 내부 속성 변경이나 초기화가 어려움
+    - private 생성자 사용으로 자식 클래스를 만들기 어려움
+    - 유연성이 떨어짐
+    - 안티패턴으로 불리기도 함
+
+### 싱글톤 컨테이너
+- 싱글톤 컨테이너는 싱클톤 패턴을 적용하지 않아도, 객체 인스턴스를 싱글톤으로 관리
+- ```싱글톤 레지스트리``` : 싱글톤 객체를 생성하고 관리하는 기능
+- 스프링 컨테이너가 싱글톤 컨테이너 역할을 함
+    - 싱글톤 패턴을 위한 긴 코드가 들어가지 않아도 됨
+    - DIP, OCP, 테스트, private 생성자로부터 자유롭게 싱글톤 사용 가능
+- __싱글톤 방식의 주의점__
+    - 객체 인스턴스를 하나만 생성해서 공유하는 싱글톤 방식은 여러 클라이언트가 하나의 같은 객체 인스턴스를 공유하기 때문에 싱그톤 객체는 상태를 유지(stateful)하게 설계하면 안됨
+    - ```무상태(stateless)```로 설계해야 함
+        - 특정 클라이언트에 의존적인 필드가 있으면 안됨
+        - 특정 클라이언트가 값을 변경할 수 있는 필드가 있으면 안됨
+        - 가급적 읽기만 가능해야함
+        - 필드 대신 자바에서 공유되지 않는 지역변수, 파라미터, ThreadLocal 등을 사용해야 함.
+    - 스프링빈의 필드에 __공유값__ 을 설정하면 __큰 장애__ 가 발생할 수 있음
