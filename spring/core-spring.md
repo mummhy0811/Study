@@ -177,3 +177,14 @@ ApplicationContext applicationContext = new AnnotationCongifApplicationContext(A
         - 가급적 읽기만 가능해야함
         - 필드 대신 자바에서 공유되지 않는 지역변수, 파라미터, ThreadLocal 등을 사용해야 함.
     - 스프링빈의 필드에 __공유값__ 을 설정하면 __큰 장애__ 가 발생할 수 있음
+
+<br>
+
+### @Configuration
+- 바이트 코드를 조작하는 ```CGLIB``` 기술을 사용   
+    -> 싱글톤을 보장
+    - AnnotationConfigApplicationContext에 파라미터로 넘긴 값(AppConfig)은 스프링 빈으로 등록
+    - CGLIB라는 바이트코드 조작 라이브러리를 통해 AppConfig 클래스를 상속받은 임의의 다른 클래스를 만들고, 그 다른 클래스를 스프링빈으로 등록 -> 이 클래스가 싱글톤이 보장되도록 해줌
+- @Bean이 붙은 메서드마다 이미 스프링 빈이 존재하면 해당 빈을 반환하고, 스프링 빈이 없으면 생성해서 스프링 빈으로 등록하고 반환하는 코드가 동적으로 만들어짐
+- @Configuration을 적용하지 않고 @Bean만 적용할 경우 싱글톤 보장 X
+
