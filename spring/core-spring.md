@@ -188,3 +188,60 @@ ApplicationContext applicationContext = new AnnotationCongifApplicationContext(A
 - @Bean이 붙은 메서드마다 이미 스프링 빈이 존재하면 해당 빈을 반환하고, 스프링 빈이 없으면 생성해서 스프링 빈으로 등록하고 반환하는 코드가 동적으로 만들어짐
 - @Configuration을 적용하지 않고 @Bean만 적용할 경우 싱글톤 보장 X
 
+<br>
+
+---
+
+<br>
+
+## 컴포넌트 스캔과 의존관계 자동 주입
+- @Bean을 통해서 스프링빈을 등록하려면 하나하나 등록해야 함(설정 정보도 커지고, 누락 등의 문제 발생 가능)   
+    -> ```컴포넌트 스캔```이 이를 해결
+
+
+### 컴포넌트 스캔
+- ```@ConponentScan```을 설정 정보에 붙여주면 ```@Component```애노테이션이 붙은 클래스를 스캔해서 스프링 빈으로 등록함
+- ```excludeFilters```를 사용하여 스캔에서 제외할 대상을 선택 가능
+- 기본적으로는 클래스명이 그대로 스프링 빈 이름으로 등록되지만,  ```@ComponentScan("스프링빈이름")```을 사용하면 스프링 빈 이름을 직접 지정할 수 있음.
+
+### 의존관계 주입
+- 컴포넌트 스캔을 통해 등록된 스프링 빈은 자동으로 등록되기 때문에 의존관계를 직접 명시할 수 없음
+    -> 자동으로 의존관계를 주입해주는 ```@Autowired```사용
+- 생성자에 @Autowired를 사용하면, 스프링 컨테이너가 자동으로 해당 스프링 빈을 찾아서 의존관계를 주입
+
+<br>
+
+## 컴포넌트 스캔 
+### 탐색 위치 지정
+``` java
+    @ComponentScan(
+            basePackages = "hello.core"
+    )
+```
+- ```basePackages```: 탐색할 패키지의 시작 위치 지정
+- ```basePackages = {"a", "b"}```: 탐색할 패키지의 시작 위치 여러개 지정
+- ```basePackageClasse```: 지정한 클래스의 패키지를 탐색 시작 위치로 지정
+- 탐색 위치를 지정하지 않으면 @ComponentScan이 붙은 설정 정보 클래스의 패키지가 시작 위치가 됨
+- 패키지 위치를 지정하는 것이 아닌, __설정 정보 클래스의 위치를 프로젝트 최상단에 두는 것이 권장__ 됨
+
+### 기본 스캔 대상
+- @Component
+- @Controller
+- @Service
+- @Repository
+- @Configuration
+
+### 필터
+- includeFilters: 컴포넌트 스캔 대상을 추가로 지정
+- excludeFilters: 컴포넌트 스캔에서 제외할 대상을 지정
+    ``` java
+    @ComponentScan(
+        includeFilters = @Filter(type = FilterType.ANNOTATION, classes = MyIncludeComponent.class),
+        excludeFilters = @Filter(type = FilterType.ANNOTATION, classes = MyExcludeComponent.class)
+    )
+    ```
+### 중복 등록과 충돌
+- 자동 빈 등록 vs 자동 빈 등록
+    - ```ConflictingBeanDefinitionException```예외 발생
+- 자동 빈 등록 vs 수동 빈 등록
+    - 수동 빈 등록이 우선권을 가짐
