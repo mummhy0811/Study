@@ -102,3 +102,40 @@ public class HelloServlet extends HttpServlet {
     - 단, 싱글톤 객체(서블릿, 스프링 빈)는 주의해서 사용 필요
 
 <br><br>
+
+# 2. 서블릿
+## 2-1. 서블릿 기초
+### 스프링 부트 서블릿 환경 구성
+- ```@ServletComponentScan``` : 스프링부트가 서블릿을 직접 등록해서 사용할 수 있도록 지원하는 어노테이션. 메인의 @SpringBootApplication 어노테이션 위에 작성하면 됨.
+- ```@WebServlet``` : 해당 클래스가 ServletComponentScan의 대상이라는 것을 명시
+    - name:서블릿 이름
+    - urlPatterns: URL 매핑
+- 일반적으로 서블릿 이름은 클래스명과 동일하되, 첫 글자를 소문자로 하여 작성
+- 매핑된 url이 호출되면 service메서드가 실행됨
+- 코드 및 화면
+
+    ```java
+    @WebServlet(name="helloServlet", urlPatterns = "/hello")
+    public class HelloServlet extends HttpServlet {
+
+        //서블릿이 호출되면 이 service 메소드가 실행됨
+        @Override
+        protected void service(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+
+            System.out.println("HelloServlet.service");
+            System.out.println("request = " + request);
+            System.out.println("response = " + response);
+
+            String username = request.getParameter("username");
+            System.out.println("username = " + username);
+
+            //헤더 정보에 들어감
+            response.setContentType("text/plain");
+            response.setCharacterEncoding("utf-8");
+            //http 메세지 바디에 데이터가 들어감
+            response.getWriter().write("hello " + username);
+        }
+    }
+    ```
+    <img src="images/spring/servlet_log1.jpg" width="30%"/>  <br>
+    <img src="images/spring/servlet_html1.jpg" width="30%"/>  
