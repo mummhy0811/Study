@@ -1,4 +1,4 @@
-# [섹션1] 
+# [섹션2] 
 ## 회원 등록 API
 ### 엔티티는 파라미터로 받지 않는다.
 ``` java
@@ -117,3 +117,49 @@
 - 엔티티를 DTO로 변환해서 반환한다. 
 - 엔티티가 변해도 API 스펙이 변경되지 않는다. 
 - `Result` 클래스로 컬렉션을 감싸게 되면서, 향후 리턴값 확장이 자유롭다.
+
+# [섹션4] 
+## 주문 조회 V1: 엔티티 직접 노출
+```java
+    @GetMapping("/api/v1/simple-orders")
+    public List<Order> ordersV1() {
+        List<Order> all = orderRepository.findAllByString(new OrderSearch());
+        return all;
+    }
+```
+- 무한루프에 빠지게 된다. (Order → Member → Order → ...)
+  - 해결 방법1. jsonIgnore → 
+    - ```fetch = LAZY``` 이기 때문에 오류(프록시 객체를 해결하지 못해)
+    - ```fetch = LAZY``` : 즉시 객체를 가져오지 않고, PROXY 객체를 생성해서 넣어둠.(ByteBuddyInterceptor가 들어가있음)
+  - 해결 방법2. 강제 지연 로딩
+      ``` java
+        // build.gradle
+        implementation 'com.fasterxml.jackson.datatype:jackson-datatype-hibernate5'
+    
+        @Bean
+        Hibernate5Module hibernate5Module() {
+            Hibernate5Module hibernate5Module = new Hibernate5Module();
+            //강제 지연 로딩 설정
+            hibernate5Module.configure(Hibernate5Module.Feature.FORCE_LAZY_LOADING, true);
+            return hibernate5Module;
+        }}
+    
+      ```
+    - ```Hibernate5Module``` 모듈 등록 → 강제로 Lazy Loading
+    - 문제 1. 엔티티 그대로 노출
+    - 문제 2. 필요 없는 데이터 → 조회 성능 저하
+  - 해결 방법 3. 선택 강제 로딩
+    ```
+      @GetMapping("/api/v1/simple-orders")
+          public List<Order> ordersV1() {
+          List<Order> all = orderRepository.findAllByString(new OrderSearch());
+          for (Order order : all) {
+              order.getMember().getName(); //Lazy 강제 초기화
+              order.getDelivery().getAddress(); //Lazy 강제 초기화
+          }
+          return all;
+      }
+    ```
+    - 초기화 된 것은 값, 안 된 것은 null값
+    - 문제 1. 엔티티 그대로 노출
+    - 문제 2. 필요 없는 데이터 → 조회 성능 저하
