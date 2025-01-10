@@ -282,3 +282,106 @@
 
 ```
 - 쿼리가 1번으로 줄어든 모습!
+
+## 주문 조회 V4: JPA에서 DTO로 조회
+``` java
+    @GetMapping("/api/v4/simple-orders")
+    public List<OrderSimpleQueryDto> ordersV4() {
+        return orderSimpleQueryRepository.findOrderDtos();
+    }
+```
+- 기존처럼 컨트롤러에서 매핑하는 것이 아니라 repo에서 직접 매핑하기 때문에 의존관계를 위해 DTO는 repo패키지에 작성한다.
+  repository -> order -> simpleQuery -> OrderSimpleQueryDto
+``` java
+    @Data
+    public class OrderSimpleQueryDto {
+    
+        private Long orderId;
+        private String name;
+        private LocalDateTime orderDate; //주문시간
+        private OrderStatus orderStatus;
+        private Address address;
+    
+        public OrderSimpleQueryDto(Long orderId, String name, LocalDateTime orderDate, OrderStatus orderStatus, Address address) {
+            this.orderId = orderId;
+            this.name = name;
+            this.orderDate = orderDate;
+            this.orderStatus = orderStatus;
+            this.address = address;
+        }
+    }
+    
+    -----
+    @Repository
+    @RequiredArgsConstructor
+    public class OrderSimpleQueryRepository {
+    
+        private final EntityManager em;
+    
+        public List<OrderSimpleQueryDto> findOrderDtos() {
+            return em.createQuery(
+                    "select new jpabook.jpashop.repository.order.simplequery.OrderSimpleQueryDto(o.id, m.name, o.orderDate, o.status, d.address)" +
+                            " from Order o" +
+                            " join o.member m" +
+                            " join o.delivery d", OrderSimpleQueryDto.class)
+                    .getResultList();
+        }
+    }
+```
+- 일반적인 SQL을 사용할 때처럼 원하는 값을 선택해서 조회
+  - DB -> application 네트워크 용량 최적화 가능(미비)
+- new 명령어를 이용해서 JPQL의 결과를 DTO로 즉시 변환
+### JPA -> DTO 변환 시 객체를 직접 넘기지 않는 이유
+  - JPQL에서는 에니티 객체 전체를 DTO로 넘기는 것이 불가능하기 때문.
+  - JPA의 식별자 문제 때문
+    - JPA는 엔티티의 ID를 기준으로 동작
+      - JPA는 @Entity 객체를 관리할 때 객체 자체가 아니라 **식별자(Primary Key)** 를 기준으로 관리
+      - JPQL 쿼리를 통해 엔티티 객체를 통째로 반환하면 엔티티 객체와 연관된 데이터가 프록시로 남아 있거나 추가 쿼리를 발생시킬 가능성이 큼
+  - 위의 상황에서, address의 경우 Embedded 타입이기 때문에 상관 없음.
+
+``` java
+2025-01-10 18:58:31.966 DEBUG 408 --- [nio-8080-exec-1] org.hibernate.SQL                        : 
+    select
+        order0_.order_id as col_0_0_,
+        member1_.name as col_1_0_,
+        order0_.order_date as col_2_0_,
+        order0_.status as col_3_0_,
+        delivery2_.city as col_4_0_,
+        delivery2_.street as col_4_1_,
+        delivery2_.zipcode as col_4_2_ 
+    from
+        orders order0_ 
+    inner join
+        member member1_ 
+            on order0_.member_id=member1_.member_id 
+    inner join
+        delivery delivery2_ 
+            on order0_.delivery_id=delivery2_.delivery_id
+```
+- select절에서 원하는 컬럼만 가져오는 것 확인 가능
+
+### JPA DTO 조회가 무조건 좋은가? 
+> No! **TradeOff** 존재
+- Fetch join으로 조회하는 것
+    - 저장된 그대로의 모습을 가져오는 것
+    - [👍🏻] 많은 API에서 재사용 가능
+    - [👍🏻] 엔티티를 조회했기 때문에 비즈니스 로직에서 응용 가능
+    - [👎🏻] 코드 변환 필요
+- DTO로 조회하는 것
+  - 외부의 모습을 건들인 상태
+  - [👍🏻] 화면에 최적화 (but, repo가 화면에 의존한다는 단점 동시 존재)
+  - [👍🏻] 필요한 컬럼만 가져옴(조금 더 성능 최적화)
+  - [👎🏻] 재사용성 떨어짐
+  - [👎🏻] DTO로 조회했기 때문에  비즈니스 로직에서 응용 불가능 (Read의 경우에 적합)
+
+> 대부분의 경우는 두가지의 **성능이 크게 차이나지 않는다** (컬럼이 매우 많은 경우 제외)<br>
+> 성능은 보통 **Join**에서 결정됨 <br> <br>
+> 💡 나의 API 성질을 고려해서 선택하는 것이 중요 <br>
+> ex) admin이면 DTO조회 굳이? / 실시간 유저 트래픽이 매우 많으면 고려 필요
+
+- 참고
+- DTO로 조회 시 의존성을 "조금"이나마 줄일 방법
+  - DTO형태로 가져오는 코드들의 경로를 분리한다.
+  - 리포지토리는 가급적 순수한 엔티티를 조회하는 용도로 사용하는 것이 좋기 때문.
+  - `repository.order.simplequery`: 쿼리 맞춤용
+  - `repository`: 엔티티 조회용
