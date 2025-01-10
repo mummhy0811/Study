@@ -40,6 +40,14 @@ public class OrderSimpleApiController {
                 .collect(toList());
     }
 
+    @GetMapping("/api/v3/simple-orders")
+    public List<SimpleOrderDto> ordersV3() {
+        //order와 member와 delivery를 join해서 한 번에 가져옴
+        return orderRepository.findAllWithMemberDelivery().stream()
+                .map(SimpleOrderDto::new)
+                .collect(toList());
+    }
+
     @Data
     static class SimpleOrderDto {
         private Long orderId;
