@@ -118,6 +118,9 @@
 - 엔티티가 변해도 API 스펙이 변경되지 않는다. 
 - `Result` 클래스로 컬렉션을 감싸게 되면서, 향후 리턴값 확장이 자유롭다.
 
+<br>
+<br>
+
 # [섹션4] 
 ## 주문 조회 V1: 엔티티 직접 노출
 ```java
@@ -127,12 +130,12 @@
         return all;
     }
 ```
-- 무한루프에 빠지게 된다. (Order → Member → Order → ...)
-  - 해결 방법1. jsonIgnore → 
-    - ```fetch = LAZY``` 이기 때문에 오류(프록시 객체를 해결하지 못해)
-    - ```fetch = LAZY``` : 즉시 객체를 가져오지 않고, PROXY 객체를 생성해서 넣어둠.(ByteBuddyInterceptor가 들어가있음)
-  - 해결 방법2. 강제 지연 로딩
-      ``` java
+### 🚨[문제] 무한루프에 빠지게 된다. (Order → Member → Order → ...)
+  ### 해결 방법1. jsonIgnore
+  - ```fetch = LAZY``` 이기 때문에 오류(프록시 객체를 해결하지 못해)
+  - ```fetch = LAZY``` : 즉시 객체를 가져오지 않고, PROXY 객체를 생성해서 넣어둠.(ByteBuddyInterceptor가 들어가있음)
+  ### 해결 방법2. 강제 지연 로딩
+  ``` java
         // build.gradle
         implementation 'com.fasterxml.jackson.datatype:jackson-datatype-hibernate5'
     
@@ -144,12 +147,10 @@
             return hibernate5Module;
         }}
     
-      ```
-    - ```Hibernate5Module``` 모듈 등록 → 강제로 Lazy Loading
-    - 문제 1. 엔티티 그대로 노출
-    - 문제 2. 필요 없는 데이터 → 조회 성능 저하
-  - 해결 방법 3. 선택 강제 로딩
-    ```
+   ```
+  - ```Hibernate5Module``` 모듈 등록 → 강제로 Lazy Loading
+### 해결 방법 3. 선택 강제 로딩
+``` java
       @GetMapping("/api/v1/simple-orders")
           public List<Order> ordersV1() {
           List<Order> all = orderRepository.findAllByString(new OrderSearch());
@@ -159,7 +160,84 @@
           }
           return all;
       }
-    ```
-    - 초기화 된 것은 값, 안 된 것은 null값
-    - 문제 1. 엔티티 그대로 노출
-    - 문제 2. 필요 없는 데이터 → 조회 성능 저하
+   ```
+- 초기화 된 것은 값, 안 된 것은 null값
+
+### 🚨[문제] 엔티티 그대로 노출
+### 🚨 [문제] 필요 없는 데이터 → 조회 성능 저하
+
+## 주문 조회 V2: DTO 변환
+```java
+    @GetMapping("/api/v2/simple-orders")
+    public List<SimpleOrderDto> ordersV2() {
+        return orderRepository.findAll() //데이터 검색
+                .stream() //변환
+                .map(SimpleOrderDto::new)
+                .collect(toList());
+    }
+
+    @Data
+    static class SimpleOrderDto {
+        private Long orderId;
+        private String name;
+        private LocalDateTime orderDate; //주문시간
+        private OrderStatus orderStatus;
+        private Address address;
+
+        public SimpleOrderDto(Order order) {
+            orderId = order.getId();
+            name = order.getMember().getName(); //LAZY 초기화
+            orderDate = order.getOrderDate();
+            orderStatus = order.getStatus();
+            address = order.getDelivery().getAddress(); //LAZY 초기화
+        }
+    }
+```
+- 리턴용 DTO를 만든 후 변환하여 리턴한다.
+  - 엔티티 노출 방지 가능
+### 🚨[문제] Lazy loading으로 인해 발생하는 N+1 문제 (v1, v2 공통)
+> N+1 이란? <br>
+> 첫 쿼리를 위해 부가 쿼리 N번이 추가적으로 발생하는 현상
+``` java
+2025-01-10 17:36:56.384 DEBUG 23268 --- [nio-8080-exec-2] org.hibernate.SQL                        : 
+    select
+        order0_.order_id as order_id1_6_,
+        order0_.delivery_id as delivery4_6_,
+        order0_.member_id as member_i5_6_,
+        order0_.order_date as order_da2_6_,
+        order0_.status as status3_6_ 
+    from
+        orders order0_
+//----------------------------불필요한 LAZY 쿼리 --------------------------
+2025-01-10 17:36:56.440 DEBUG 23268 --- [nio-8080-exec-2] org.hibernate.SQL                        : 
+    select
+        member0_.member_id as member_i1_4_0_,
+        member0_.city as city2_4_0_,
+        member0_.street as street3_4_0_,
+        member0_.zipcode as zipcode4_4_0_,
+        member0_.name as name5_4_0_ 
+    from
+        member member0_ 
+    where
+        member0_.member_id in (?, ?)
+2025-01-10 17:36:56.454 DEBUG 23268 --- [nio-8080-exec-2] org.hibernate.SQL                        : 
+    select
+        delivery0_.delivery_id as delivery1_2_0_,
+        delivery0_.city as city2_2_0_,
+        delivery0_.street as street3_2_0_,
+        delivery0_.zipcode as zipcode4_2_0_,
+        delivery0_.status as status5_2_0_ 
+    from
+        delivery delivery0_ 
+    where
+        delivery0_.delivery_id in (?, ?)
+```
+- 의도한 쿼리보다 더 많은 쿼리가 사용됨.
+- ``` orderRepository.findAll()```: Order 조회 -> SQL 2회 -> Order가 2개 조회됨.
+- ```stream```: { 첫 주문서에 member쿼리, delivery 쿼리 생성 -> simpleOrderDto 생성 } x n
+> 한 api 조회에 쿼리가 5번이 나감 <br>
+> order가 10개라면? 21번 나감 <br>
+> **1 + 회원 N + 배송 N (최악의 경우)**
+- **최악의 경우**인 이유?
+  - 지연 로딩은 **영속성 컨텍스트**를 기반으로 하기 때문에, 이미 조회된 쿼리의 경우 실행하지 않는다.
+
