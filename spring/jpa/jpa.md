@@ -460,3 +460,270 @@
 > 참고 <br>
 > 지연 로딩은 속성 컨텍스트에 있으면 속성 컨텍스트에 있는 엔티티를 사용하고 없으면 SQL을 실행한다.  <br>
 > 따라서 같은 속성 컨텍스트에서 이미 로딩한 회원 엔티티를 추가로 조회하면 SQL을 실행하지 않는다. <br>
+
+
+## 주문 조회 V3: 페치 조인 최적화
+``` java
+    @GetMapping("/api/v3/orders")
+    public List<OrderDto> ordersV3() {
+
+        return orderRepository.findAllWithItem().stream()//fetch join으로 db 조회
+                .map(OrderDto::new) // dto로 변환
+                .collect(toList());
+    }
+    //--------------------------------------------------------------------
+    public List<Order> findAllWithItem() {
+        return em.createQuery(
+                "select o from Order o" +
+                        " join fetch o.member m" +
+                        " join fetch o.delivery d" +
+                        " join fetch o.orderItems oi" +
+                        " join fetch oi.item i", Order.class)
+                .getResultList();
+    }
+```
+### 🚨[문제] 중복 데이터 조회 발생
+- 쿼리를 이용해 페치조인으로 데이터를 조회하게 되면 1대 다 조인으로 인해 데이터베이스 row가 증가한다.
+- 그 결과, 같은 order 엔티티의 조회 수도 증가된다.
+``` 
+[
+    {
+        "orderId": 4,
+        "name": "userA",
+        "orderDate": "2025-01-13T16:24:38.174888",
+        "orderStatus": "ORDER",
+        "address": {
+            "city": "서울",
+            "street": "1",
+            "zipcode": "1111"
+        },
+        "orderItems": [
+            {
+                "itemName": "JPA1 BOOK",
+                "orderPrice": 10000,
+                "count": 1
+            },
+            {
+                "itemName": "JPA2 BOOK",
+                "orderPrice": 20000,
+                "count": 2
+            }
+        ]
+    },
+    {
+        "orderId": 4,
+        "name": "userA",
+        "orderDate": "2025-01-13T16:24:38.174888",
+        "orderStatus": "ORDER",
+        "address": {
+            "city": "서울",
+            "street": "1",
+            "zipcode": "1111"
+        },
+        "orderItems": [
+            {
+                "itemName": "JPA1 BOOK",
+                "orderPrice": 10000,
+                "count": 1
+            },
+            {
+                "itemName": "JPA2 BOOK",
+                "orderPrice": 20000,
+                "count": 2
+            }
+        ]
+    },
+    {
+        "orderId": 11,
+        "name": "userB",
+        "orderDate": "2025-01-13T16:24:38.259094",
+        "orderStatus": "ORDER",
+        "address": {
+            "city": "진주",
+            "street": "2",
+            "zipcode": "2222"
+        },
+        "orderItems": [
+            {
+                "itemName": "SPRING1 BOOK",
+                "orderPrice": 20000,
+                "count": 3
+            },
+            {
+                "itemName": "SPRING2 BOOK",
+                "orderPrice": 40000,
+                "count": 4
+            }
+        ]
+    },
+    {
+        "orderId": 11,
+        "name": "userB",
+        "orderDate": "2025-01-13T16:24:38.259094",
+        "orderStatus": "ORDER",
+        "address": {
+            "city": "진주",
+            "street": "2",
+            "zipcode": "2222"
+        },
+        "orderItems": [
+            {
+                "itemName": "SPRING1 BOOK",
+                "orderPrice": 20000,
+                "count": 3
+            },
+            {
+                "itemName": "SPRING2 BOOK",
+                "orderPrice": 40000,
+                "count": 4
+            }
+        ]
+    }
+]
+```
+
+### [해결 방법] distinct 사용
+- 쿼리에 distinct를 추가하여 같은 엔티티가 조회되면 중복을 거른다
+- DB의 distinct와는 조금 다르다.
+  - DB의 distinct는 한 row가 `완전히` 같아야 중복이 제거
+  - JPA의 distinct는 부모 엔티티(Order)가 `같은 id값`이면 중복을 제거
+``` java
+public List<Order> findAllWithItem() {
+  return em.createQuery(
+                  "select distinct o from Order o" +
+                          " join fetch o.member m" +
+                          " join fetch o.delivery d" +
+                          " join fetch o.orderItems oi" +
+                          " join fetch oi.item i", Order.class)
+          .getResultList();
+} 
+```
+```
+[
+    {
+        "orderId": 4,
+        "name": "userA",
+        "orderDate": "2025-01-13T16:25:42.797068",
+        "orderStatus": "ORDER",
+        "address": {
+            "city": "서울",
+            "street": "1",
+            "zipcode": "1111"
+        },
+        "orderItems": [
+            {
+                "itemName": "JPA1 BOOK",
+                "orderPrice": 10000,
+                "count": 1
+            },
+            {
+                "itemName": "JPA2 BOOK",
+                "orderPrice": 20000,
+                "count": 2
+            }
+        ]
+    },
+    {
+        "orderId": 11,
+        "name": "userB",
+        "orderDate": "2025-01-13T16:25:42.876784",
+        "orderStatus": "ORDER",
+        "address": {
+            "city": "진주",
+            "street": "2",
+            "zipcode": "2222"
+        },
+        "orderItems": [
+            {
+                "itemName": "SPRING1 BOOK",
+                "orderPrice": 20000,
+                "count": 3
+            },
+            {
+                "itemName": "SPRING2 BOOK",
+                "orderPrice": 40000,
+                "count": 4
+            }
+        ]
+    }
+]
+```
+- SQL쿼리 1번으로 조회 가능.
+
+### 🚨[문제] 페이징 불가능(1:N 조인)
+``` 
+public List<Order> findAllWithItem() {
+        return em.createQuery(
+                "select distinct o from Order o" +
+                        " join fetch o.member m" +
+                        " join fetch o.delivery d" +
+                        " join fetch o.orderItems oi" +
+                        " join fetch oi.item i", Order.class)
+                .setFirstResult(1)
+                .setMaxResults(100)
+                .getResultList();
+    }
+// 쿼리
+2025-01-13 16:35:56.343 DEBUG 7052 --- [nio-8080-exec-2] org.hibernate.SQL                        : 
+    select
+        distinct order0_.order_id as order_id1_6_0_,
+        member1_.member_id as member_i1_4_1_,
+        delivery2_.delivery_id as delivery1_2_2_,
+        orderitems3_.order_item_id as order_it1_5_3_,
+        item4_.item_id as item_id2_3_4_,
+        order0_.delivery_id as delivery4_6_0_,
+        order0_.member_id as member_i5_6_0_,
+        order0_.order_date as order_da2_6_0_,
+        order0_.status as status3_6_0_,
+        member1_.city as city2_4_1_,
+        member1_.street as street3_4_1_,
+        member1_.zipcode as zipcode4_4_1_,
+        member1_.name as name5_4_1_,
+        delivery2_.city as city2_2_2_,
+        delivery2_.street as street3_2_2_,
+        delivery2_.zipcode as zipcode4_2_2_,
+        delivery2_.status as status5_2_2_,
+        orderitems3_.count as count2_5_3_,
+        orderitems3_.item_id as item_id4_5_3_,
+        orderitems3_.order_id as order_id5_5_3_,
+        orderitems3_.order_price as order_pr3_5_3_,
+        orderitems3_.order_id as order_id5_5_0__,
+        orderitems3_.order_item_id as order_it1_5_0__,
+        item4_.name as name3_3_4_,
+        item4_.price as price4_3_4_,
+        item4_.stock_quantity as stock_qu5_3_4_,
+        item4_.artist as artist6_3_4_,
+        item4_.etc as etc7_3_4_,
+        item4_.author as author8_3_4_,
+        item4_.isbn as isbn9_3_4_,
+        item4_.actor as actor10_3_4_,
+        item4_.director as directo11_3_4_,
+        item4_.dtype as dtype1_3_4_ 
+    from
+        orders order0_ 
+    inner join
+        member member1_ 
+            on order0_.member_id=member1_.member_id 
+    inner join
+        delivery delivery2_ 
+            on order0_.delivery_id=delivery2_.delivery_id 
+    inner join
+        order_item orderitems3_ 
+            on order0_.order_id=orderitems3_.order_id 
+    inner join
+        item item4_ 
+            on orderitems3_.item_id=item4_.item_id
+```
+- limit, offset을 찾아볼 수 없다.
+```
+// 페이지네이션 적용했을 때의 로그
+2025-01-13 16:35:56.341  WARN 7052 --- [nio-8080-exec-2] o.h.h.internal.ast.QueryTranslatorImpl   : HHH000104: firstResult/maxResults specified with collection fetch; applying in memory!
+```
+- 하이버네이트는 경고 로그를 남기면서 모든 데이터를 DB에서 읽어오고, **메모리에서 페이징** 한다.
+  - ex) 데이터 row가 10,000개라면, 데이터를 모두 가져온 후 메모리에서 페이징 처리 (out of memory 위험)
+
+<참고>
+- 컬렉션 페치 조인은 1개만 사용할 수 있다. 
+- 컬렉션 둘 이상에 페치 조인을 사용하면 안된다. 
+- 데이터가 부정확하게 조회될 수 있다.
+

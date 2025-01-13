@@ -42,6 +42,14 @@ public class OrderApiController {
                 .collect(toList());
     }
 
+    @GetMapping("/api/v3/orders")
+    public List<OrderDto> ordersV3() {
+
+        return orderRepository.findAllWithItem().stream()//fetch join으로 db 조회
+                .map(OrderDto::new) // dto로 변환
+                .collect(toList());
+    }
+
     @Data
     static class OrderDto {
         private Long orderId;
