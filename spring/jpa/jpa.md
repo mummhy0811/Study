@@ -727,3 +727,290 @@ public List<Order> findAllWithItem() {
 - 컬렉션 둘 이상에 페치 조인을 사용하면 안된다. 
 - 데이터가 부정확하게 조회될 수 있다.
 
+## 💡 주문 조회 V3.1: 페이징 적용💡
+
+### 1. ToOne 관계를 모두 페치조인한다
+``` java
+    public List<Order> findAllWithMemberDelivery(int offset, int limit) {
+        return em.createQuery(
+                "select o from Order o" +
+                        " join fetch o.member m" +
+                        " join fetch o.delivery d", Order.class)
+                .setFirstResult(offset)
+                .setMaxResults(limit)
+                .getResultList();
+```
+### 2. 컬렉션(ToMany)은 지연로딩으로 조회한다.
+``` java
+    @GetMapping("/api/v3.1/orders")
+    public List<OrderDto> ordersV3_page(@RequestParam(value = "offset", defaultValue = "0") int offset,
+                                        @RequestParam(value = "limit", defaultValue = "100") int limit) {
+
+        return orderRepository.findAllWithMemberDelivery(offset, limit)
+                .stream()
+                .map(OrderDto::new)
+                .collect(toList());
+    }
+    
+    @Data
+    static class OrderDto {
+        private Long orderId;
+        private String name;
+        private LocalDateTime orderDate;
+        private OrderStatus orderStatus;
+        private Address address;
+        private List<OrderItemDto> orderItems;
+
+        public OrderDto(Order order) {
+            orderId = order.getId();
+            name = order.getMember().getName();
+            orderDate = order.getOrderDate();
+            orderStatus = order.getStatus();
+            address = order.getDelivery().getAddress();
+            orderItems = order.getOrderItems().stream()
+                    .map(OrderItemDto::new)
+                    .collect(toList());
+        }
+    }
+
+    @Data
+    static class OrderItemDto {
+        private String itemName;
+        private int orderPrice;
+        private int count;
+
+        public OrderItemDto(OrderItem orderItem) {
+            itemName = orderItem.getItem().getName();
+            orderPrice = orderItem.getOrderPrice();
+            count = orderItem.getCount();
+        }
+    }
+```
+- ToOne쿼리 1회 + ToMany 자식만큼 N회 
+  - ex) 각 order에 대하여, order이 N개, order에 orderItem이 M개 있다면
+  - 전체 order조회 1회 + ( orderItems조회 1회 + 각 orderItem조회 M회 ) * N회
+```
+2025-01-13 17:09:20.167 DEBUG 19468 --- [nio-8080-exec-1] org.hibernate.SQL                        : 
+    select
+        order0_.order_id as order_id1_6_0_,
+        member1_.member_id as member_i1_4_1_,
+        delivery2_.delivery_id as delivery1_2_2_,
+        order0_.delivery_id as delivery4_6_0_,
+        order0_.member_id as member_i5_6_0_,
+        order0_.order_date as order_da2_6_0_,
+        order0_.status as status3_6_0_,
+        member1_.city as city2_4_1_,
+        member1_.street as street3_4_1_,
+        member1_.zipcode as zipcode4_4_1_,
+        member1_.name as name5_4_1_,
+        delivery2_.city as city2_2_2_,
+        delivery2_.street as street3_2_2_,
+        delivery2_.zipcode as zipcode4_2_2_,
+        delivery2_.status as status5_2_2_ 
+    from
+        orders order0_ 
+    inner join
+        member member1_ 
+            on order0_.member_id=member1_.member_id 
+    inner join
+        delivery delivery2_ 
+            on order0_.delivery_id=delivery2_.delivery_id
+2025-01-13 17:09:20.187 DEBUG 19468 --- [nio-8080-exec-1] org.hibernate.SQL                        : 
+    select
+        orderitems0_.order_id as order_id5_5_0_,
+        orderitems0_.order_item_id as order_it1_5_0_,
+        orderitems0_.order_item_id as order_it1_5_1_,
+        orderitems0_.count as count2_5_1_,
+        orderitems0_.item_id as item_id4_5_1_,
+        orderitems0_.order_id as order_id5_5_1_,
+        orderitems0_.order_price as order_pr3_5_1_ 
+    from
+        order_item orderitems0_ 
+    where
+        orderitems0_.order_id=?
+2025-01-13 17:09:20.202 DEBUG 19468 --- [nio-8080-exec-1] org.hibernate.SQL                        : 
+    select
+        item0_.item_id as item_id2_3_0_,
+        item0_.name as name3_3_0_,
+        item0_.price as price4_3_0_,
+        item0_.stock_quantity as stock_qu5_3_0_,
+        item0_.artist as artist6_3_0_,
+        item0_.etc as etc7_3_0_,
+        item0_.author as author8_3_0_,
+        item0_.isbn as isbn9_3_0_,
+        item0_.actor as actor10_3_0_,
+        item0_.director as directo11_3_0_,
+        item0_.dtype as dtype1_3_0_ 
+    from
+        item item0_ 
+    where
+        item0_.item_id=?
+2025-01-13 17:09:20.204 DEBUG 19468 --- [nio-8080-exec-1] org.hibernate.SQL                        : 
+    select
+        item0_.item_id as item_id2_3_0_,
+        item0_.name as name3_3_0_,
+        item0_.price as price4_3_0_,
+        item0_.stock_quantity as stock_qu5_3_0_,
+        item0_.artist as artist6_3_0_,
+        item0_.etc as etc7_3_0_,
+        item0_.author as author8_3_0_,
+        item0_.isbn as isbn9_3_0_,
+        item0_.actor as actor10_3_0_,
+        item0_.director as directo11_3_0_,
+        item0_.dtype as dtype1_3_0_ 
+    from
+        item item0_ 
+    where
+        item0_.item_id=?
+2025-01-13 17:09:20.206 DEBUG 19468 --- [nio-8080-exec-1] org.hibernate.SQL                        : 
+    select
+        orderitems0_.order_id as order_id5_5_0_,
+        orderitems0_.order_item_id as order_it1_5_0_,
+        orderitems0_.order_item_id as order_it1_5_1_,
+        orderitems0_.count as count2_5_1_,
+        orderitems0_.item_id as item_id4_5_1_,
+        orderitems0_.order_id as order_id5_5_1_,
+        orderitems0_.order_price as order_pr3_5_1_ 
+    from
+        order_item orderitems0_ 
+    where
+        orderitems0_.order_id=?
+2025-01-13 17:09:20.207 DEBUG 19468 --- [nio-8080-exec-1] org.hibernate.SQL                        : 
+    select
+        item0_.item_id as item_id2_3_0_,
+        item0_.name as name3_3_0_,
+        item0_.price as price4_3_0_,
+        item0_.stock_quantity as stock_qu5_3_0_,
+        item0_.artist as artist6_3_0_,
+        item0_.etc as etc7_3_0_,
+        item0_.author as author8_3_0_,
+        item0_.isbn as isbn9_3_0_,
+        item0_.actor as actor10_3_0_,
+        item0_.director as directo11_3_0_,
+        item0_.dtype as dtype1_3_0_ 
+    from
+        item item0_ 
+    where
+        item0_.item_id=?
+2025-01-13 17:09:20.208 DEBUG 19468 --- [nio-8080-exec-1] org.hibernate.SQL                        : 
+    select
+        item0_.item_id as item_id2_3_0_,
+        item0_.name as name3_3_0_,
+        item0_.price as price4_3_0_,
+        item0_.stock_quantity as stock_qu5_3_0_,
+        item0_.artist as artist6_3_0_,
+        item0_.etc as etc7_3_0_,
+        item0_.author as author8_3_0_,
+        item0_.isbn as isbn9_3_0_,
+        item0_.actor as actor10_3_0_,
+        item0_.director as directo11_3_0_,
+        item0_.dtype as dtype1_3_0_ 
+    from
+        item item0_ 
+    where
+        item0_.item_id=?
+```
+### 3. 지연로딩 최적화를 위해  `hibernate.default_batch_fetch_size` , `@BatchSize` 를 적용한다.
+- 이 옵션을 사용하면 컬렉션이나, 프록시 객체를 한꺼번에 설정한 size 만큼 IN 쿼리로 조회한다.
+#### hibernate.default_batch_fetch_size: 글로벌 설정 
+```
+  jpa:
+    properties:
+      hibernate:
+        default_batch_fetch_size: 1000
+```
+#### @BatchSize: 개별 최적화 (특정 엔티티)
+  ```
+  // 컬렉션은 컬렉션 필드에, 엔티티는 엔티티 클래스에 적용
+    //toMany
+    @BatchSize(size = 1000)
+    @OneToMany(mappedBy = "order", cascade = CascadeType.ALL)
+    private List<OrderItem> orderItems = new ArrayList<>();
+    
+    //toOne
+    @BatchSize(size = 1000)
+    public abstract class Item {
+  ```
+<결과>
+```
+2025-01-13 18:28:05.428 DEBUG 17452 --- [nio-8080-exec-2] org.hibernate.SQL                        : 
+    select
+        order0_.order_id as order_id1_6_0_,
+        member1_.member_id as member_i1_4_1_,
+        delivery2_.delivery_id as delivery1_2_2_,
+        order0_.delivery_id as delivery4_6_0_,
+        order0_.member_id as member_i5_6_0_,
+        order0_.order_date as order_da2_6_0_,
+        order0_.status as status3_6_0_,
+        member1_.city as city2_4_1_,
+        member1_.street as street3_4_1_,
+        member1_.zipcode as zipcode4_4_1_,
+        member1_.name as name5_4_1_,
+        delivery2_.city as city2_2_2_,
+        delivery2_.street as street3_2_2_,
+        delivery2_.zipcode as zipcode4_2_2_,
+        delivery2_.status as status5_2_2_ 
+    from
+        orders order0_ 
+    inner join
+        member member1_ 
+            on order0_.member_id=member1_.member_id 
+    inner join
+        delivery delivery2_ 
+            on order0_.delivery_id=delivery2_.delivery_id limit ?
+2025-01-13 18:28:05.456 DEBUG 17452 --- [nio-8080-exec-2] org.hibernate.SQL                        : 
+    select
+        orderitems0_.order_id as order_id5_5_1_,
+        orderitems0_.order_item_id as order_it1_5_1_,
+        orderitems0_.order_item_id as order_it1_5_0_,
+        orderitems0_.count as count2_5_0_,
+        orderitems0_.item_id as item_id4_5_0_,
+        orderitems0_.order_id as order_id5_5_0_,
+        orderitems0_.order_price as order_pr3_5_0_ 
+    from
+        order_item orderitems0_ 
+    where
+        orderitems0_.order_id in (
+            ?, ?
+        )
+2025-01-13 18:28:05.475 DEBUG 17452 --- [nio-8080-exec-2] org.hibernate.SQL                        : 
+    select
+        item0_.item_id as item_id2_3_0_,
+        item0_.name as name3_3_0_,
+        item0_.price as price4_3_0_,
+        item0_.stock_quantity as stock_qu5_3_0_,
+        item0_.artist as artist6_3_0_,
+        item0_.etc as etc7_3_0_,
+        item0_.author as author8_3_0_,
+        item0_.isbn as isbn9_3_0_,
+        item0_.actor as actor10_3_0_,
+        item0_.director as directo11_3_0_,
+        item0_.dtype as dtype1_3_0_ 
+    from
+        item item0_ 
+    where
+        item0_.item_id in (
+            ?, ?, ?, ?
+        )
+```
+- 변화된 점은 where절에 in 쿼리가 생겼다는 것.
+  - `default_batch_fetch_size: 100` 으로 하면, in 안에 100개까지 들어갈 수 있다.
+
+- [👍🏻]
+  - 쿼리 호출 수가 `1 + N` → `1 + 1` 로 최적화 된다. 
+  - 조인보다 **DB 데이터 전송량이 최적화** 된다. 
+    - Order와 OrderItem을 조인하면 Order가 OrderItem 만큼 중복해서 조회된다. 
+    - 이 방법은 각각 조회하므로 전송해야할 `중복 데이터가 없다`.
+  - `페이징이 가능`하다.
+- [👎🏻]
+  - 페치 조인 방식과 비교해서 쿼리 호출 수가 약간 증가한다. (그러나, DB 데이터 전송량은 감소)
+- [결론]
+  - ToOne 관계는 페치 조인해도 페이징에 영향을 주지 않는다. 
+  - 따라서 ToOne 관계는 페치조인으로 쿼리 수 를 줄여서 해결하고, 나머지(ToMany)는 `hibernate.default_batch_fetch_size` 로 최적화 하자.
+
+> [참고] 
+> - `default_batch_fetch_size` 의 크기는 적당한 사이즈를 골라야 하는데, 100~1000 사이를 선택하는 것을 권장한다. <br>
+>   - SQL IN 절을 사용하는데, 데이터베이스에 따라 IN 절 파라미터를 1000으로 제한하기도 한다. 
+> - 1000으로 잡으면 한번에 1000개를 DB에서 애플리케이션에 불러오므로 DB에 순간 부하가 증가할 수 있다.
+> - 하지만 애플리케이션은 100이든 1000이든 결국 전체 데이터를 로딩해야 하므로 메모리 사용량이 같다.
+> - `1000으로 설정하는 것이 성능상 가장 좋지만`, 결국 DB든 애플리케이션이든 **순간 부하**를 어디까지 견딜 수 있는 지로 결정하면 된다.
