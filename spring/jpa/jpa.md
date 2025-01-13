@@ -121,7 +121,7 @@
 <br>
 <br>
 
-# [섹션4] 
+# [섹션4] 지연 로딩과 조회 성능 최적화
 ## 주문 조회 V1: 엔티티 직접 노출
 ```java
     @GetMapping("/api/v1/simple-orders")
@@ -130,11 +130,11 @@
         return all;
     }
 ```
-### 🚨[문제] 무한루프에 빠지게 된다. (Order → Member → Order → ...)
-  ### 해결 방법1. jsonIgnore
+#### 🚨[문제] 무한루프에 빠지게 된다. (Order → Member → Order → ...)
+  #### 해결 방법1. jsonIgnore
   - ```fetch = LAZY``` 이기 때문에 오류(프록시 객체를 해결하지 못해)
   - ```fetch = LAZY``` : 즉시 객체를 가져오지 않고, PROXY 객체를 생성해서 넣어둠.(ByteBuddyInterceptor가 들어가있음)
-  ### 해결 방법2. 강제 지연 로딩
+  #### 해결 방법2. 강제 지연 로딩
   ``` java
         // build.gradle
         implementation 'com.fasterxml.jackson.datatype:jackson-datatype-hibernate5'
@@ -149,7 +149,7 @@
     
    ```
   - ```Hibernate5Module``` 모듈 등록 → 강제로 Lazy Loading
-### 해결 방법 3. 선택 강제 로딩
+#### 해결 방법 3. 선택 강제 로딩
 ``` java
       @GetMapping("/api/v1/simple-orders")
           public List<Order> ordersV1() {
@@ -163,8 +163,8 @@
    ```
 - 초기화 된 것은 값, 안 된 것은 null값
 
-### 🚨[문제] 엔티티 그대로 노출
-### 🚨 [문제] 필요 없는 데이터 → 조회 성능 저하
+#### 🚨[문제] 엔티티 그대로 노출
+#### 🚨 [문제] 필요 없는 데이터 → 조회 성능 저하
 
 ## 주문 조회 V2: DTO 변환
 ```java
@@ -195,7 +195,7 @@
 ```
 - 리턴용 DTO를 만든 후 변환하여 리턴한다.
   - 엔티티 노출 방지 가능
-### 🚨[문제] Lazy loading으로 인해 발생하는 N+1 문제 (v1, v2 공통)
+#### 🚨[문제] Lazy loading으로 인해 발생하는 N+1 문제 (v1, v2 공통)
 > N+1 이란? <br>
 > 첫 쿼리를 위해 부가 쿼리 N번이 추가적으로 발생하는 현상
 ``` java
@@ -360,7 +360,7 @@
 ```
 - select절에서 원하는 컬럼만 가져오는 것 확인 가능
 
-### JPA DTO 조회가 무조건 좋은가? 
+## JPA DTO 조회가 무조건 좋은가? 
 > No! **TradeOff** 존재
 - Fetch join으로 조회하는 것
     - 저장된 그대로의 모습을 가져오는 것
@@ -385,3 +385,78 @@
   - 리포지토리는 가급적 순수한 엔티티를 조회하는 용도로 사용하는 것이 좋기 때문.
   - `repository.order.simplequery`: 쿼리 맞춤용
   - `repository`: 엔티티 조회용
+
+
+# [섹션5] 컬렉션 조회 최적화
+## 주문 조회 V1: 엔티티 직접 노출
+``` java
+    @GetMapping("/api/v1/orders")
+    public List<Order> ordersV1() {
+        List<Order> all = orderRepository.findAll();
+        for (Order order : all) {
+            order.getMember().getName(); //Lazy 강제 초기화
+            order.getDelivery().getAddress(); //Lazy 강제 초기환
+            List<OrderItem> orderItems = order.getOrderItems();
+            orderItems.stream().forEach(o -> o.getItem().getName()); //Lazy 강제 초기화
+        }
+        return all;
+    }
+```
+- orderItems도 get을 함으로써 강제 초기화
+### 🚨[문제] 엔티티 그대로 노출
+
+## 주문 조회 V2: DTO 변환
+``` java
+@GetMapping("/api/v2/orders")
+    public List<OrderDto> ordersV2() {
+
+        return orderRepository.findAll()// db 조회
+                .stream()
+                .map(OrderDto::new) // dto로 변환
+                .collect(toList());
+    }
+
+    @Data
+    static class OrderDto {
+        private Long orderId;
+        private String name;
+        private LocalDateTime orderDate;
+        private OrderStatus orderStatus;
+        private Address address;
+        private List<OrderItemDto> orderItems;
+
+        public OrderDto(Order order) {
+            orderId = order.getId();
+            name = order.getMember().getName();
+            orderDate = order.getOrderDate();
+            orderStatus = order.getStatus();
+            address = order.getDelivery().getAddress();
+            orderItems = order.getOrderItems().stream()
+                    .map(OrderItemDto::new)
+                    .collect(toList());
+        }
+    }
+
+    @Data
+    static class OrderItemDto {
+        private String itemName;
+        private int orderPrice;
+        private int count;
+
+        public OrderItemDto(OrderItem orderItem) {
+            itemName = orderItem.getItem().getName();
+            orderPrice = orderItem.getOrderPrice();
+            count = orderItem.getCount();
+        }
+    }
+```
+- 엔티티(Order) 내부의 엔티티(OrderItem)도 모두 DTO로 변경해야 한다.
+### 🚨[문제] 지연 로딩으로 너무 많은 SQL 실행 
+- SQL 실행 수 
+  - `order` 1번 `member` 
+  - `address` N번(order 조회 수 만큼) 
+  - `orderItem` N번(order 조회 수 만큼) 
+  - `item` N번(orderItem 조회 수 만큼)
+> 참고 <br>
+> 지연 로딩은 속성 컨텍스트에 있으면 속성 컨텍스트에 있는 엔티티를 사용하고 없으면 SQL을 실행한다.  <br>
+> 따라서 같은 속성 컨텍스트에서 이미 로딩한 회원 엔티티를 추가로 조회하면 SQL을 실행하지 않는다. <br>
