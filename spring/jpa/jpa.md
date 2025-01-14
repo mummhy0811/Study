@@ -1014,3 +1014,99 @@ public List<Order> findAllWithItem() {
 > - 1000으로 잡으면 한번에 1000개를 DB에서 애플리케이션에 불러오므로 DB에 순간 부하가 증가할 수 있다.
 > - 하지만 애플리케이션은 100이든 1000이든 결국 전체 데이터를 로딩해야 하므로 메모리 사용량이 같다.
 > - `1000으로 설정하는 것이 성능상 가장 좋지만`, 결국 DB든 애플리케이션이든 **순간 부하**를 어디까지 견딜 수 있는 지로 결정하면 된다.
+
+## 주문 조회 V4: JPA에서 DTO 직접 조회
+### QueryRepository 분리
+``` java
+    public List<OrderQueryDto> findOrderQueryDtos() {
+        //루트 조회(toOne 코드를 모두 한번에 조회)
+        List<OrderQueryDto> result = findOrders();
+
+        //루프를 돌면서 컬렉션 추가(추가 쿼리 실행)
+        result.forEach(o -> {
+            List<OrderItemQueryDto> orderItems = findOrderItems(o.getOrderId());
+            o.setOrderItems(orderItems);
+        });
+        return result;
+    }
+
+    /**
+     * 1:N 관계(컬렉션)를 제외한 나머지를 한번에 조회
+     */
+    private List<OrderQueryDto> findOrders() {
+        return em.createQuery(
+                "select new jpabook.jpashop.repository.order.query.OrderQueryDto(o.id, m.name, o.orderDate, o.status, d.address)" +
+                        " from Order o" +
+                        " join o.member m" +
+                        " join o.delivery d", OrderQueryDto.class)
+                .getResultList();
+    }
+
+    /**
+     * 1:N 관계인 orderItems 조회
+     */
+    private List<OrderItemQueryDto> findOrderItems(Long orderId) {
+        return em.createQuery(
+                "select new jpabook.jpashop.repository.order.query.OrderItemQueryDto(oi.order.id, i.name, oi.orderPrice, oi.count)" +
+                        " from OrderItem oi" +
+                        " join oi.item i" +
+                        " where oi.order.id = : orderId", OrderItemQueryDto.class)
+                .setParameter("orderId", orderId)
+                .getResultList();
+    }
+```
+
+### 리포지토리와 같은 경로에 DTO 작성
+``` java
+@Data
+@EqualsAndHashCode(of = "orderId")
+public class OrderQueryDto {
+
+    private Long orderId;
+    private String name;
+    private LocalDateTime orderDate;
+    private OrderStatus orderStatus;
+    private Address address;
+    private List<OrderItemQueryDto> orderItems;
+
+    public OrderQueryDto(Long orderId, String name, LocalDateTime orderDate, OrderStatus orderStatus, Address address) {
+        this.orderId = orderId;
+        this.name = name;
+        this.orderDate = orderDate;
+        this.orderStatus = orderStatus;
+        this.address = address;
+    }
+
+    public OrderQueryDto(Long orderId, String name, LocalDateTime orderDate, OrderStatus orderStatus, Address address, List<OrderItemQueryDto> orderItems) {
+        this.orderId = orderId;
+        this.name = name;
+        this.orderDate = orderDate;
+        this.orderStatus = orderStatus;
+        this.address = address;
+        this.orderItems = orderItems;
+    }
+}
+//------------------------------------------------
+
+@Data
+public class OrderItemQueryDto {
+
+    @JsonIgnore
+    private Long orderId; 
+    private String itemName;
+    private int orderPrice;
+    private int count;      
+
+    public OrderItemQueryDto(Long orderId, String itemName, int orderPrice, int count) {
+        this.orderId = orderId;
+        this.itemName = itemName;
+        this.orderPrice = orderPrice;
+        this.count = count;
+    }
+}
+```
+<결과>
+- Query: 루트 1번, 컬렉션 N 번 실행 
+- ToOne 관계들을 먼저 조회하고, ToMany 관계는 각각 처리한다. 
+  - ToOne 관계는 조인해도 데이터 row 수가 증가하지 않기 때문에 먼저 처리.
+  - ToMany(1:N) 관계는 조인하면 row 수가 증가하기 때문에 나주에 처리.
