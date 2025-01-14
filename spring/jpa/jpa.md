@@ -1059,7 +1059,6 @@ public List<Order> findAllWithItem() {
 ### 리포지토리와 같은 경로에 DTO 작성
 ``` java
 @Data
-@EqualsAndHashCode(of = "orderId")
 public class OrderQueryDto {
 
     private Long orderId;
@@ -1157,3 +1156,72 @@ public class OrderItemQueryDto {
 - 쿼리를 한 번 날리고(컬렉션 조회용), `메모리에서 매칭`(컬렉션 데이터를 채움)하기 때문에 추가 쿼리가 실행되지 않음.
 - ToOne 관계들을 먼저 조회하고, 여기서 얻은 식별자 orderId로 ToMany 관계인 `OrderItem` 을 한꺼번에 조회 
 - MAP을 사용해서 `매칭 성능 향상(O(1))`
+
+## 주문 조회 V6: JPA에서 DTO 직접 조회 최적화(플랫)
+### join을 이용해 flat하게 dto로 조회
+```java
+    // ------ repo
+    public List<OrderFlatDto> findAllByDto_flat() {
+      return em.createQuery(
+                      "select new jpabook.jpashop.repository.order.query.OrderFlatDto(o.id, m.name, o.orderDate, o.status, d.address, i.name, oi.orderPrice, oi.count)" +
+                              " from Order o" +
+                              " join o.member m" +
+                              " join o.delivery d" +
+                              " join o.orderItems oi" +
+                              " join oi.item i", OrderFlatDto.class)
+              .getResultList();
+    }
+    //-----------DTO
+    @Data
+    public class OrderFlatDto {
+    
+      private Long orderId;
+      private String name;
+      private LocalDateTime orderDate; //주문시간
+      private Address address;
+      private OrderStatus orderStatus;
+    
+      private String itemName;//상품 명
+      private int orderPrice; //주문 가격
+      private int count;      //주문 수량
+    
+      public OrderFlatDto(Long orderId, String name, LocalDateTime orderDate, OrderStatus orderStatus, Address address, String itemName, int orderPrice, int count) {
+        this.orderId = orderId;
+        this.name = name;
+        this.orderDate = orderDate;
+        this.orderStatus = orderStatus;
+        this.address = address;
+        this.itemName = itemName;
+        this.orderPrice = orderPrice;
+        this.count = count;
+      }
+    
+    }
+```
+<결과>
+- [👍🏻]
+  - 쿼리 1회로 조회 가능
+- [👎🏻]
+  - 조인으로 인해 DB에서 애플리케이션에 전달하는 데이터에 중복 데이터가 추가
+    - 상황에 따라 V5 보다 더 느릴 수 있음
+  - 애플리케이션에서 필요한 추가 작업이 많음
+  - 페이징 불가능
+
+### flat 제거
+``` java
+    @GetMapping("/api/v6/orders")
+    public List<OrderQueryDto> ordersV6() {
+        List<OrderFlatDto> flats = orderQueryRepository.findAllByDto_flat();
+
+        return flats.stream()
+                .collect(groupingBy(o -> new OrderQueryDto(o.getOrderId(), o.getName(), o.getOrderDate(), o.getOrderStatus(), o.getAddress()),
+                        mapping(o -> new OrderItemQueryDto(o.getOrderId(), o.getItemName(), o.getOrderPrice(), o.getCount()), toList())
+                )).entrySet().stream()
+                .map(e -> new OrderQueryDto(e.getKey().getOrderId(), e.getKey().getName(), e.getKey().getOrderDate(), e.getKey().getOrderStatus(), e.getKey().getAddress(), e.getValue()))
+                .collect(toList());
+    }
+```
+- `@EqualsAndHashCode(of = "orderId")`를 DTO에 추가해야 함
+  - 동일한 hashcode를 가진 것을 기준으로 groupBy 하겠다는 의미
+- 이 전 버전과 동일한 api 스펙을 이용하기 위한 작업
+- 메모리에서 해주는 작업이다.
