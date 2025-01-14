@@ -1107,6 +1107,53 @@ public class OrderItemQueryDto {
 ```
 <결과>
 - Query: 루트 1번, 컬렉션 N 번 실행 
+  - Order들을 조회하는 것 1회, 그 Order에 해당하는 OrderItems를 조회하는 것 각각 N회
+  - Order에 OrderItem이 4개라면, 4회 조회(id로 각각 조회하기 때문)
 - ToOne 관계들을 먼저 조회하고, ToMany 관계는 각각 처리한다. 
   - ToOne 관계는 조인해도 데이터 row 수가 증가하지 않기 때문에 먼저 처리.
   - ToMany(1:N) 관계는 조인하면 row 수가 증가하기 때문에 나주에 처리.
+
+
+## 주문 조회 V5: JPA에서 DTO 직접 조회 최적화
+``` java
+    public List<OrderQueryDto> findAllByDto_optimization() {
+
+        //루트 조회(toOne 코드를 모두 한번에 조회)
+        List<OrderQueryDto> result = findOrders();
+
+        //orderItem 컬렉션을 MAP 한방에 조회
+        Map<Long, List<OrderItemQueryDto>> orderItemMap = findOrderItemMap(toOrderIds(result));
+
+        //루프를 돌면서 컬렉션 추가(추가 쿼리 실행X)
+        result.forEach(o -> o.setOrderItems(orderItemMap.get(o.getOrderId())));
+
+        return result;
+    }
+
+    //id를 list형태로 뽑아낸다(where in 절에 사용하기 위함)
+    private List<Long> toOrderIds(List<OrderQueryDto> result) {
+        return result.stream()
+                .map(OrderQueryDto::getOrderId)
+                .collect(Collectors.toList());
+    }
+
+    private Map<Long, List<OrderItemQueryDto>> findOrderItemMap(List<Long> orderIds) {
+        List<OrderItemQueryDto> orderItems = em.createQuery(
+                "select new jpabook.jpashop.repository.order.query.OrderItemQueryDto(oi.order.id, i.name, oi.orderPrice, oi.count)" +
+                        " from OrderItem oi" +
+                        " join oi.item i" +
+                        " where oi.order.id in :orderIds", OrderItemQueryDto.class)
+                .setParameter("orderIds", orderIds)
+                .getResultList();
+
+        return orderItems.stream()
+                .collect(Collectors.groupingBy(OrderItemQueryDto::getOrderId));
+    }
+```
+<결과>
+- Query: 루트 1번, 컬렉션 1번 
+  - Order들을 조회하는 것 1회, 그 Order에 해당하는 OrderItems를 조회하는 것 각각 N회
+  - Order에 OrderItem이 4개라면, where in을 이용해 한 번에 4개 조회!
+- 쿼리를 한 번 날리고(컬렉션 조회용), `메모리에서 매칭`(컬렉션 데이터를 채움)하기 때문에 추가 쿼리가 실행되지 않음.
+- ToOne 관계들을 먼저 조회하고, 여기서 얻은 식별자 orderId로 ToMany 관계인 `OrderItem` 을 한꺼번에 조회 
+- MAP을 사용해서 `매칭 성능 향상(O(1))`
