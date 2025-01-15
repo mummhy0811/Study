@@ -1283,3 +1283,50 @@ public class OrderItemQueryDto {
   - 데이터가 많으면 중복 전송이 증가해서 V5와 비교해서 성능 차이도 미비하다.
 
 > 굳이 DTO 조회를 해야 한다면, V5를 쓰는 것이 좋아보인다.
+
+
+# [섹션 6]
+## OSIV와 성능 최적화
+### OSIV란?
+- Open Session In View: 하이버네이트
+- Open EntityManager In View: JPA
+
+### OSIV ON
+ <img src="images/spring/jpa_osiv1.jpg" width="30%"/>  <br>
+
+- `spring.jpa.open-in-view` : true 기본값
+- Spring 프로젝트를 시작하면 warn 로그가 뜬다. (이유가 있다.)
+  - ```2025-01-15 21:33:16.500  WARN 10008 --- [           main] JpaBaseConfiguration$JpaWebConfiguration : spring.jpa.open-in-view is enabled by default. Therefore, database queries may be performed during view rendering. Explicitly configure spring.jpa.open-in-view to disable this warning```
+- 영속성 컨텍스트 생존 범위: 최초 DB 커넥션(트랜잭션) 시작 ~ API 응답 종료(화면 반환)
+- 영속성 컨텍스트 범위가 길다.
+  - View Template이나 API 컨트롤러에서 지연 로딩이 가능하다
+- 지연 로딩은 영속성 컨텍스트가 살아있어야 가능하고, 영속성 컨텍스트는 기본적으로 데이터베이스 커넥션을 유지한다.
+
+> 이 전략은 너무 오랜시간동안 `데이터베이스 커넥션 리소스`를 사용하기 때문에, **실시간 트래픽**이 중요한 애플리 케이션에서는 커넥션이 모자랄 수 있다. 
+> 이것은 결국 `장애로 이어진다`.
+> 
+> 예를 들어서 컨트롤러에서 외부 API를 호출하면 외부 API 대기 시간 만큼 커넥션 리소스를 반환하지 못하고, 유지해야 한다.
+
+> 하지만, lazy loading을 이용해서 컨트롤러나 뷰에서 활용할 수 있다는 장점이 있다.
+> (중복을 줄여서 유지보수성을 높일 수 있다)
+
+
+### OSIV OFF
+
+<img src="images/spring/jpa_osiv2.jpg" width="30%"/>  <br>
+
+- spring.jpa.open-in-view: false` OSIV 종료
+- 영속성 컨텍스트 생존 범위: 트랜잭션 범위와 동일
+- 영속성 컨텍스트 범위가 짧다.
+  - 트랜잭션을 종료할 때 영속성 컨텍스트를 닫고 DB 커넥션도 종료한다.
+    - 커넥션 리소스를 낭비하지 않는다.
+  - 모든 지연로딩을 트랜잭션 안에서 처리해야 한다.
+  - view template에서 지연로딩이 동작하지 않는다
+    - `org.hibernate.LazyInitializationException: could not initialize proxy [jpabook.jpashop.domain.Member#1] - no Session
+      `
+## [OFF 오류 해결 방법] 커맨드와 쿼리 분리
+### QueryService 생성
+- 영속성 로직을 관리하는 service를 만들어서 controller에 있던 영속성 코드를 제거한다.
+- OrderService
+  - OrderService: 핵심 비즈니스 로직
+  - OrderQueryService: 화면이나 API에 맞춘 서비스(주로 읽기 전용 트랜잭션 사용)
